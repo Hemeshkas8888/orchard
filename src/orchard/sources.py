@@ -106,7 +106,11 @@ def working_tree(source):
             shutil.copyfile(original, index)
         else:
             git(source, 'read-tree', 'HEAD', env=env)
-        git(source, 'add', '--all', '--', '.', env=env)
+        # --force: on a case-insensitive filesystem git ignores case too, so an
+        # ignore pattern like the kernel's *.s would drop a new headsmp.S from
+        # the snapshot. The kernel builds into a separate directory, so the
+        # source holds no files that are rightly ignored.
+        git(source, 'add', '--all', '--force', '--', '.', env=env)
         return git(source, 'write-tree', env=env).decode()
 
 

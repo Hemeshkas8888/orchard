@@ -90,7 +90,9 @@ snapshot() {
   rm -f "$index"
   cp "$(git -C "$source" rev-parse --absolute-git-dir)/index" "$index" 2>/dev/null ||
     GIT_INDEX_FILE=$index git -C "$source" read-tree HEAD
-  GIT_INDEX_FILE=$index git -C "$source" add --all -- .
+  # --force: on a case-insensitive filesystem an ignore pattern like *.s also
+  # matches a new headsmp.S; the source holds no rightly ignored files.
+  GIT_INDEX_FILE=$index git -C "$source" add --all --force -- .
   GIT_INDEX_FILE=$index git -C "$source" write-tree
   rm -f "$index"
 }
