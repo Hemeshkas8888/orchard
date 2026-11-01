@@ -67,8 +67,12 @@ def platform(name):
     for key in ('upstream', 'series', 'config'):
         if not (REPO / kernel[key]).is_file():
             raise ValueError(f'{descriptor}: kernel.{key} {kernel[key]} does not exist')
+    if not re.fullmatch(r'[a-z0-9][a-z0-9_]*_defconfig', str(kernel.get('defconfig', ''))):
+        raise ValueError(f'{descriptor}: kernel.defconfig must be a <name>_defconfig')
+    if not re.fullmatch(r'[a-z0-9][a-z0-9._/-]*', str(kernel.get('branch', ''))):
+        raise ValueError(f'{descriptor}: invalid kernel.branch')
     return {'platform': platform_name, **{key: kernel[key] for key in
-            ('arch', 'image', 'dtbs', 'upstream', 'series', 'config')}}
+            ('arch', 'image', 'dtbs', 'upstream', 'series', 'config', 'defconfig', 'branch')}}
 
 
 def patches(name):

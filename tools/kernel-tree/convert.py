@@ -3,7 +3,7 @@
 
 Each patch directory becomes a topic: its patches are applied as commits on
 top of main, then merged into main with --no-ff, in series order. The topic
-tips are kept as refs/topics/<directory>; only main is meant to be published.
+tips are kept as refs/topics/<NAME>/<directory>; only the branch is published.
 
 Pure plumbing (temporary index, git apply --cached, commit-tree), so no
 checkout is touched. Deterministic and stable: a commit's committer and
@@ -13,10 +13,16 @@ regenerating from a newer orchard commit keeps the SHAs of every topic
 before the first changed one.
 
 usage: convert.py --orchard REPO --commit REV --layers kernel|boot/m1n1
-                  --target REPO --base REV [--map FILE]
+                  [--series FILE] --target REPO --base REV [--refs NAME] [--map FILE]
+
+The kernel has one series per platform (kernel/series/<platform>), so it
+needs --series; m1n1 has one, boot/m1n1/series. Topic refs go to
+refs/topics/<NAME>/ (default: the layers' last path component).
 """
 import argparse
+import atexit
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -29,6 +35,8 @@ parser.add_argument('--commit', required=True, help='orchard commit to convert')
 parser.add_argument('--layers', required=True, help='kernel or boot/m1n1')
 parser.add_argument('--target', required=True, type=Path, help='linux or m1n1 repository')
 parser.add_argument('--base', required=True, help='upstream base in the target repository')
+parser.add_argument('--series', help='series file relative to --layers, e.g. series/apple-16k')
+parser.add_argument('--refs', help='topic refs go to refs/topics/<REFS>/')
 parser.add_argument('--map', type=Path, help='write "patch path<TAB>commit" lines here')
 args = parser.parse_args()
 
@@ -42,6 +50,7 @@ def run(*cmd, env=None, input=None, cwd=None):
 
 commit = run('git', '-C', args.orchard, 'rev-parse', '--short', args.commit)
 work = Path(tempfile.mkdtemp(prefix='kernel-tree-'))
+atexit.register(shutil.rmtree, work, ignore_errors=True)
 index = work / 'index'
 source = work / 'src'
 source.mkdir()
@@ -68,15 +77,17 @@ def last_change(path):
 
 # Patch order exactly as the build applies it: series layers in order; the
 # kernel's series.py takes every patch below a layer (rglob), m1n1's build
-# only the layer's own files. Both kernel platforms share one layer list.
-if (layers / 'series').is_dir():
-    lists = {p.name: p.read_text() for p in (layers / 'series').iterdir()}
-    strip = lambda text: [l.split('#', 1)[0].strip() for l in text.splitlines()]
-    if len({tuple(filter(None, strip(t))) for t in lists.values()}) != 1:
-        sys.exit(f'Platforms list different layers: {sorted(lists)}; convert them separately')
-    series, find = next(iter(lists.values())), 'rglob'
+# only the layer's own files.
+if args.series:
+    series_file, find = layers / args.series, 'rglob'
+elif (layers / 'series').is_file():
+    series_file, find = layers / 'series', 'glob'
 else:
-    series, find = (layers / 'series').read_text(), 'glob'
+    sys.exit(f'{args.layers} has one series per platform; name one with --series')
+if not series_file.is_file():
+    sys.exit(f'No series {args.series} in {args.layers} at {commit}')
+series = series_file.read_text()
+refs = args.refs or Path(args.layers).name
 patches = []
 for line in series.splitlines():
     line = line.split('#', 1)[0].strip()
@@ -128,7 +139,7 @@ for topic, files in topics:
             'GIT_AUTHOR_NAME': fields['Author'], 'GIT_AUTHOR_EMAIL': fields['Email'],
             'GIT_AUTHOR_DATE': fields['Date'], **committer})
         mapping.append((rel, tip))
-    git('update-ref', f'refs/topics/{topic}', tip)
+    git('update-ref', f'refs/topics/{refs}/{topic}', tip)
     # The merge is authored and committed as the topic's most recent change.
     newest = orchard_log('%h\t%an\t%ae\t%cn\t%ce\t%cD', '-1', '--',
                          *(str(p.relative_to(source)) for p in files))

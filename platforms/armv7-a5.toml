@@ -13,3 +13,4 @@ upstream = "kernel/upstream-v6.12.lock" # base the series applies to
 series = "kernel/series/armv7-a5"       # ordered patch layers
 config = "kernel/configs/armv7-a5/config"
 defconfig = "orchard_armv7a5_defconfig"   # the same config in OrchardLinux/linux
+branch = "a5"                      # its branch in OrchardLinux/linux

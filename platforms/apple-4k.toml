@@ -13,3 +13,4 @@ upstream = "kernel/upstream.lock"       # base the series applies to
 series = "kernel/series/apple-4k"        # ordered patch layers
 config = "kernel/configs/apple-4k/config"
 defconfig = "orchard_apple4k_defconfig"   # the same config in OrchardLinux/linux
+branch = "main"                    # its branch in OrchardLinux/linux

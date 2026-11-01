@@ -13,8 +13,10 @@ v6.12, reproduce Cascadia's tree; the tool checks that before writing.
 usage: import-cascadia.py --cascadia DIR --commit REV --linux DIR --base REV --out DIR
 """
 import argparse
+import atexit
 import collections
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -74,6 +76,7 @@ def cgit(*cmd):
 
 commit = cgit('rev-parse', '--short', args.commit)
 work = Path(tempfile.mkdtemp(prefix='cascadia-'))
+atexit.register(shutil.rmtree, work, ignore_errors=True)
 src = work / 'src'
 src.mkdir()
 run('tar', '-x', '-C', src, input=subprocess.run(['git', '-C', args.cascadia, 'archive', commit, 'patches'],

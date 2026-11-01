@@ -20,6 +20,8 @@ dtbs = "arch/arm/boot/dts/apple"
 upstream = "kernel/upstream.lock"
 series = "kernel/series/test-arm"
 config = "kernel/configs/test-arm/config"
+defconfig = "test_arm_defconfig"
+branch = "test"
 '''
 
 
@@ -67,6 +69,8 @@ class Platforms(unittest.TestCase):
             'image with a path': VALID.replace('"zImage"', '"../zImage"'),
             'other name': VALID.replace('name = "test-arm"', 'name = "other"'),
             'other schema': VALID.replace('schema = 1', 'schema = 2'),
+            'no defconfig': VALID.replace('defconfig = "test_arm_defconfig"\n', ''),
+            'bad branch': VALID.replace('branch = "test"', 'branch = "../x"'),
         }
         for case, text in cases.items():
             with self.subTest(case=case):
