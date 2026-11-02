@@ -2,7 +2,17 @@
 """Combine loader, boot arguments, DTBs, kernel and initramfs into an m1n1 image.
 
 m1n1 boots with the DTB whose root compatible names the device it runs on, so
-one image carries the DTB of every device it supports.
+one image carries the DTB of every device it supports. The image is m1n1's
+own payload format and nothing more; this script needs only Python's standard
+library and runs by path, without orchard:
+
+  python3 src/orchard/image/assemble.py --bootargs 'console=tty0 rdinit=/init' \
+      --loader m1n1.bin --dtb t8010-j71b.dtb --kernel Image.gz \
+      --initramfs initramfs.cpio.gz --output linux.bin
+
+The same bytes by hand (docs/ram-development.md, "Assembling by hand"):
+m1n1.bin, the line "chosen.bootargs=ARGS\n", every DTB, Image.gz, then
+"m1n1_initramfs", the initramfs size as 4 bytes little-endian, the initramfs.
 """
 import argparse
 import hashlib
@@ -25,12 +35,19 @@ def initramfs_header(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--manifest', type=Path, required=True, help='device boot profile')
+    given = parser.add_mutually_exclusive_group(required=True)
+    given.add_argument('--bootargs', help='kernel command line')
+    given.add_argument('--manifest', type=Path, help='boot profile: JSON with "bootargs": "chosen.bootargs=...\\n"')
     for name in ('loader', 'kernel', 'initramfs', 'output'):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--dtb', type=Path, action='append', required=True, help='repeat once per device')
     args = parser.parse_args()
-    bootargs = json.loads(args.manifest.read_text())['bootargs'].encode()
+    if args.bootargs is not None:
+        if '\n' in args.bootargs or '\r' in args.bootargs:
+            parser.error('boot arguments are one line')
+        bootargs = f'chosen.bootargs={args.bootargs}\n'.encode()
+    else:
+        bootargs = json.loads(args.manifest.read_text())['bootargs'].encode()
     if not bootargs.startswith(b'chosen.bootargs=') or not bootargs.endswith(b'\n'):
         parser.error('invalid device boot arguments')
     if args.output.exists():

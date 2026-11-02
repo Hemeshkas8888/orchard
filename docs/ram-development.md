@@ -67,6 +67,36 @@ only confirmation: payload verification, sole-device/identity checks, operation
 locking, refusal to reboot running Linux and the single-attempt policy remain.
 A custom `/init` owns device behavior; the host tool cannot infer its safety.
 
+## Assembling by hand
+
+`linux.bin` is m1n1's own payload format; orchard adds nothing to it. With a
+kernel bundle (`Image.gz`, DTBs), an initramfs and m1n1, from a published
+build or your own, assemble it without orchard:
+
+```sh
+python3 src/orchard/image/assemble.py --bootargs 'console=tty0 loglevel=7 rdinit=/init' \
+    --loader m1n1.bin --dtb t8010-j71b.dtb --kernel Image.gz \
+    --initramfs initramfs.cpio.gz --output linux.bin
+```
+
+The script uses only Python's standard library. The same bytes by hand:
+
+```sh
+{ cat m1n1.bin
+  printf 'chosen.bootargs=%s\n' 'console=tty0 loglevel=7 rdinit=/init'
+  cat t8010-*.dtb                 # every DTB; m1n1 picks the one matching the device
+  cat Image.gz
+  printf 'm1n1_initramfs'
+  python3 -c 'import os,struct,sys; sys.stdout.buffer.write(struct.pack("<I", os.path.getsize("initramfs.cpio.gz")))'
+  cat initramfs.cpio.gz
+} > linux.bin
+```
+
+m1n1 reads the `chosen.bootargs` line as configuration, takes the DTB whose
+root compatible names the device, and hands the framed initramfs to Linux
+unexpanded. Boot `linux.bin` like any m1n1 payload: through Pongo (`orchard
+run` does this), the m1n1 proxy, or an installed m1n1.
+
 ## Lower-level Python functions
 
 The Python functions are separated by responsibility:

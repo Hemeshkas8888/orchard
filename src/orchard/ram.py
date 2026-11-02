@@ -78,13 +78,11 @@ def assemble_ram(hardware, output, *, kernel, busybox, loader, pongo, init,
             target.chmod(Path(source).stat().st_mode & 0o777)
         command(sys.executable, '-m', 'orchard.image.initramfs', '--root', root,
                 '--output', work / 'initramfs.cpio.gz')
-        profile = work / 'boot.json'
-        profile.write_text(json.dumps({'bootargs': 'chosen.bootargs=' + bootargs + '\n'}))
         dtbs = [kernel / 'dtbs' / (dtb + '.dtb') for dtb in boards.values()]
         for path in dtbs:
             if not path.is_file():
                 raise ValueError(f'Kernel bundle lacks {path.name}')
-        assemble(profile, loader, dtbs, kernel / 'Image.gz', work / 'initramfs.cpio.gz', work / 'linux.bin')
+        assemble(bootargs, loader, dtbs, kernel / 'Image.gz', work / 'initramfs.cpio.gz', work / 'linux.bin')
         if (work / 'linux.bin').stat().st_size > 128 * 1024 * 1024:
             raise ValueError('Payload exceeds the Pongo uploader limit (128 MiB)')
         shutil.copyfile(pongo, work / 'pongo.bin')
@@ -102,8 +100,8 @@ def assemble_ram(hardware, output, *, kernel, busybox, loader, pongo, init,
     return output
 
 
-def assemble(profile, loader, dtbs, kernel, initramfs, output):
-    command(sys.executable, '-m', 'orchard.image.assemble', '--manifest', profile, '--loader', loader,
+def assemble(bootargs, loader, dtbs, kernel, initramfs, output):
+    command(sys.executable, '-m', 'orchard.image.assemble', '--bootargs', bootargs, '--loader', loader,
             *(argument for dtb in dtbs for argument in ('--dtb', dtb)), '--kernel', kernel,
             '--initramfs', initramfs, '--output', output)
 
@@ -283,11 +281,9 @@ def with_firmware(output, board, *, hardware=None, cache=None):
             for part in (output / 'initramfs.cpio.gz', work / 'firmware.cpio.gz'):
                 stream.write(part.read_bytes())
         assembly = receipt['assembly']
-        profile = work / 'boot.json'
-        profile.write_text(json.dumps({'bootargs': 'chosen.bootargs=' + assembly['bootargs'] + '\n'}))
         image = work / 'image'
         image.mkdir()
-        assemble(profile, Path(assembly['loader']), [Path(path) for path in assembly['dtbs']],
+        assemble(assembly['bootargs'], Path(assembly['loader']), [Path(path) for path in assembly['dtbs']],
                  Path(assembly['kernel']), combined, image / 'linux.bin')
         shutil.copyfile(output / 'pongo.bin', image / 'pongo.bin')
         layered = {**receipt, 'boards': [board], 'firmware': True,
