@@ -113,6 +113,15 @@ to 10 CPUs and 16 GB by hand (November 2026). Instead:
 - the values are a visible, adjustable setting, not a default in a script;
 - builds that share the VM take a job count (`ORCHARD_KERNEL_JOBS`) so a
   second build does not take every core.
+- **done:** builds and launches share the component cache's lock
+  (`~/.cache/orchard/.lock`); only `orchard cache` takes it exclusively, and
+  an entry being built is locked on its own. Before, a build held it
+  exclusively for a whole kernel compile, so an `orchard launch` of an
+  already-built entry waited for an unrelated platform's build while an
+  iPad sat in DFU (November 2026);
+- builds check free space on the host and in the VM before they start, and
+  the VM gives deleted space back (fstrim) instead of growing until a build
+  dies with "no space left on device".
 
 ## Build caching (planned, last)
 
