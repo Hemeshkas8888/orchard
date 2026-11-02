@@ -1,4 +1,5 @@
 """Manifest resolution, downloads and installed-wheel independence; no devices."""
+import contextlib
 import hashlib
 import io
 import json
@@ -291,7 +292,9 @@ class Runtime(unittest.TestCase):
     def test_low_level_boot_uses_preserved_adapter_and_never_installs(self):
         adapter = Mock(PROFILE='j71b')
         device = {'mode': 'pongo'}
-        with patch('orchard.command.choose', return_value=(adapter, device)), \
+        # The real operation lock is a live device operation's (orchard launch on this machine).
+        with patch('orchard.command.operation_lock', contextlib.nullcontext), \
+             patch('orchard.command.choose', return_value=(adapter, device)), \
              patch('sys.argv', ['orchard', 'boot', str(CLI / 'tests/fixtures/developer/develop.toml')]), \
              patch('sys.stdout', new_callable=io.StringIO):
             main()
