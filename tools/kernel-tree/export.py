@@ -31,7 +31,8 @@ parser.add_argument('--topic', action='append', default=[], metavar='SHA=TOPIC',
 parser.add_argument('--dry-run', action='store_true', help='show the plan, write nothing')
 parser.add_argument('branch')
 args = parser.parse_args()
-patches = args.orchard / 'kernel/patches'
+args.orchard, args.linux = args.orchard.resolve(), args.linux.resolve()
+patches = args.orchard / "kernel/patches"
 
 
 def git(*cmd, input=None):
