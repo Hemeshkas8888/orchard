@@ -5,31 +5,44 @@
 # - an orchard checkout (pyproject.toml of the project "orchard"): that checkout;
 # - an orchard.local.toml with orchard = "PATH": the checkout at PATH, relative
 #   to that file, e.g. your own clone or a worktree on a branch;
-# otherwise mainline: orchard's main branch, kept in the Orchard cache and
-# updated before use at most every ten minutes.
+# otherwise mainline: orchard's main branch, cloned into the Orchard cache once
+# and changed only by `orchard update`, so nothing moves under a running build.
 #
 # `orchard python ARGS` runs Python in that checkout's environment, for a
-# distribution's own scripts; `orchard checkout` prints which checkout runs.
+# distribution's own scripts; `orchard checkout` prints which checkout runs;
+# `orchard update` updates mainline (a checkout of your own is yours: git).
 set -eu
 
 cache=${ORCHARD_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/orchard}
 
+main=$cache/orchard-main
+
 mainline() {
-    main=$cache/orchard-main
-    url=${ORCHARD_MAINLINE_URL:-https://github.com/OrchardLinux/orchard.git}
     if [ ! -d "$main/.git" ]; then
         mkdir -p "$cache"
-        git clone --quiet "$url" "$main" >&2
-    elif [ -z "$(find "$main/.git/FETCH_HEAD" -mmin -10 2>/dev/null)" ]; then
-        if ! git -C "$main" diff --quiet HEAD 2>/dev/null; then
-            echo "orchard: $main has local changes; not updating mainline" >&2
-        elif git -C "$main" fetch --quiet origin main 2>/dev/null; then
-            git -C "$main" checkout --quiet --detach FETCH_HEAD
-        else
-            echo 'orchard: could not update mainline; using the last fetched one' >&2
-        fi
+        git clone --quiet "${ORCHARD_MAINLINE_URL:-https://github.com/OrchardLinux/orchard.git}" "$main" >&2
     fi
     printf '%s\n' "$main"
+}
+
+update() {
+    if [ "$1" != "$main" ]; then
+        echo "orchard runs your checkout $1; update it with git" >&2
+        return
+    fi
+    if ! git -C "$main" diff --quiet HEAD; then
+        echo "orchard: $main has local changes; not updating mainline" >&2
+        exit 1
+    fi
+    before=$(git -C "$main" rev-parse --short HEAD)
+    git -C "$main" fetch --quiet origin main
+    git -C "$main" checkout --quiet --detach FETCH_HEAD
+    after=$(git -C "$main" rev-parse --short HEAD)
+    if [ "$before" = "$after" ]; then
+        echo "mainline is up to date at $after"
+    else
+        echo "mainline $before -> $after"
+    fi
 }
 
 checkout() {
@@ -69,6 +82,7 @@ root=$(checkout)
 export UV_PROJECT_ENVIRONMENT="$root/.venv"
 case ${1:-} in
     checkout) printf '%s\n' "$root" ;;
+    update) update "$root" ;;
     python) shift; exec uv run --quiet --project "$root" python "$@" ;;
     *) exec uv run --quiet --project "$root" orchard "$@" ;;
 esac

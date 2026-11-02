@@ -60,7 +60,7 @@ does not depend on any clone. It runs the checkout the current directory belongs
 - inside an orchard checkout, that checkout, e.g. a worktree on your branch;
 - elsewhere, the checkout named by the nearest `orchard.local.toml`
   (`orchard = "../orchard-gpu"`), e.g. in a distribution you work on;
-- otherwise orchard's `main`, updated before use.
+- otherwise orchard's `main`, which `orchard update` updates (nothing else does).
 
 A payload is built for every board of one platform (`out/apple-16k/`, `out/apple-4k/`).
 `orchard run` takes the platform from the attached board; `orchard build` from

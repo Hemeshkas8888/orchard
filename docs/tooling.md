@@ -46,7 +46,7 @@ is unchanged, so most builds need no Xcode.
 
 1. an orchard checkout (`pyproject.toml` of the project `orchard`): that checkout, e.g. a worktree on your branch;
 2. an `orchard.local.toml` with `orchard = "PATH"`: the checkout at PATH;
-3. otherwise mainline: orchard's `main`, cloned into `~/.cache/orchard/orchard-main` and fetched before use at most every ten minutes.
+3. otherwise mainline: orchard's `main`, cloned into `~/.cache/orchard/orchard-main` once and changed only by `orchard update`, so nothing moves under a running build.
 
 The checkout's environment is `<checkout>/.venv`, managed by uv. `orchard python ARGS` runs a distribution's own scripts and tests in it; `orchard checkout` prints which checkout runs.
 

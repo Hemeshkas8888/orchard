@@ -209,7 +209,7 @@ def _podman_machine_step():
 
 
 def _launcher_step():
-    """`orchard` on PATH: a link to mainline's launcher, which updates with mainline."""
+    """`orchard` on PATH: a link to mainline's launcher; `orchard update` updates both."""
     from .sources import cache_root
     mainline = cache_root() / 'orchard-main'
     launcher = mainline / 'bin/orchard'

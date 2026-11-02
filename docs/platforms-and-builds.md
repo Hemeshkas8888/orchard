@@ -124,6 +124,15 @@ to 10 CPUs and 16 GB by hand (November 2026). Instead:
   the VM gives deleted space back (fstrim) instead of growing until a build
   dies with "no space left on device".
 
+## Updating orchard (done)
+
+`orchard` outside a checkout runs mainline (`~/.cache/orchard/orchard-main`).
+It used to fetch `main` before use when its last fetch was over ten minutes
+old, so any command, even `orchard --version`, could change the code and data
+a running build in another session reads. Mainline now changes only with
+`orchard update`; a checkout of your own (or one `orchard.local.toml` names)
+is yours to update with git. A fix for a running build means restarting it.
+
 ## Build caching (planned, last)
 
 - Cache keys follow what determines the output (source tree, config,
