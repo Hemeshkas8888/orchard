@@ -51,14 +51,20 @@ PAYLOAD_DEFAULTS = {'transport': True, 'modules': False, 'firmware': False}
 
 
 def payload_settings(directory):
-    """DIRECTORY/payload.toml: how this RAM payload is built. Optional.
+    """DIRECTORY/orchard.toml's [payload] (or the older payload.toml): how this RAM payload is built. Optional.
 
     transport = false leaves the USB session (network, SSH) out; modules = true
     stages the kernel's modules without loading them; firmware = true adds the
     booted board's firmware when `orchard run` boots it.
     """
-    path = Path(directory).expanduser().resolve() / PAYLOAD
-    settings = _toml(path, tuple(PAYLOAD_DEFAULTS)) if path.exists() else {}
+    from . import project
+    kind, _, settings, path = project.read(Path(directory).expanduser().resolve())
+    if kind == 'release':
+        raise ValueError(f'{path} describes a distribution, not a RAM payload')
+    unknown = set(settings) - set(PAYLOAD_DEFAULTS)
+    if unknown:
+        raise ValueError(f'{path}: unknown settings {", ".join(sorted(unknown))}; '
+                         f'expected {", ".join(PAYLOAD_DEFAULTS)}')
     for name, value in settings.items():
         if not isinstance(value, bool):
             raise ValueError(f'{path}: {name} must be true or false')

@@ -79,7 +79,7 @@ class ExampleTests(unittest.TestCase):
                 subprocess.run(['sh', '-n', str(init)], check=True)
                 build.payload_settings(example)
                 self.assertNotIn('apple,j71b', init.read_text())
-                self.assertFalse((example / 'orchard.toml').exists())
+                self.assertFalse((example / 'payload.toml').exists())
 
 
 if __name__ == '__main__':

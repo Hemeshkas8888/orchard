@@ -189,7 +189,7 @@ def build_directory(directory, *, hardware=None, cache=None, kernel=None,
                     busybox=None, loader=None, pongo=None, platform=None, device=None, kernel_tree=None):
     """Build DIRECTORY/init plus optional DIRECTORY/rootfs/ for every board of one platform.
 
-    The payload goes to DIRECTORY/out/PLATFORM/. Unless payload.toml says
+    The payload goes to DIRECTORY/out/PLATFORM/. Unless orchard.toml's [payload] says
     transport = false it also gets the USB session helper (network, SSH; see
     ram_session) for its /init to start. Firmware is never part of it: `orchard
     run` adds the booted board's (with_firmware).
@@ -241,7 +241,7 @@ def _build_directory(directory, *, hardware, cache, kernel, busybox, loader, pon
         from . import ram_session
         for destination, source in ram_session.payload_files().items():
             if destination in files:
-                raise ValueError(f'rootfs/ provides {destination}; set transport = false in payload.toml to supply your own')
+                raise ValueError(f'rootfs/ provides {destination}; set transport = false under [payload] in orchard.toml to supply your own')
             files[destination] = source
     tree = build.resolve_kernel_tree(directory, kernel_tree) if kernel is None else None
     if tree is not None:

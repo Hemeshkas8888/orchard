@@ -53,7 +53,7 @@ Two launchers, and neither looks at the current directory:
 
 | File | Committed | Contains |
 |---|---|---|
-| `payload.toml` beside a payload's `init` | yes | the payload's own settings: `transport`, `modules`, `firmware`; commented, since the examples teach the system |
+| `orchard.toml` beside a payload's `init` or at a distribution's root | yes | the project: `name`, and `[payload]` (`transport`, `modules`, `firmware`) or `[release]` (`build`, `selects-platform`); commented, since the examples teach the system |
 | `orchard.local.toml` | never | this checkout's build arguments: `platform`, `device = "BOARD"`, `kernel-tree` |
 
 No repository and no per-person setting names a board: many contributors work on several. A payload serves every board of one platform (`out/PLATFORM/`); `orchard run` takes the platform from the attached board, builds what is missing and adds that board's firmware as its own layer from the private cache; `orchard build` takes it from `--platform`, `--device`, `orchard.local.toml` or the attached board (listing USB devices only). A distribution release serves every board: one root image, and per platform a recovery and orchard's platform layer (kernel, DTBs, modules; see [boot contract](boot-contract.md#kernel-dtbs-and-modules)). Which boards are supported, and how well, is only orchard's device data (`status`, `caveats`), which the installer shows.
@@ -101,7 +101,7 @@ board:
   layer, which the installer writes into the root, and the installer writes the boot
   entry; a distribution builds one root image for every platform, names no board and
   needs no kernel-install. Release format: `schemas/v2`.
-- **A distribution as a project** (done): `distro.toml` (`name`, `build`) names
+- **A distribution as a project** (done): `orchard.toml` (`name`, `[release] build`) names
   its build entry. In a distribution checkout `orchard build` runs it as
   `ENTRY --version VERSION --output out/releases/VERSION` (default version
   `dev-DATE-TIME`), checks the index, its distro and version and every file it

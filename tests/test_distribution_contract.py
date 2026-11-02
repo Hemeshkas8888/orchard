@@ -14,7 +14,7 @@ from orchard import inputs  # noqa: E402
 
 # Every command of the contract and the options a distribution may rely on.
 COMMANDS = {
-    'orchard.inputs': ['--output', '--platform', '--kernel-dir', '--m1n1', '--pongo', '--tools'],
+    'orchard.inputs': ['--output', '--platform', '--kernel-dir', '--m1n1', '--pongo', '--tools', '--kernel-tree'],
     'orchard.image.platform': ['--output', '--kernel-dir', '--busybox', '--receipt'],
     'orchard.image.recovery': ['--dtb', '--loader', '--logo', '--kernel', '--modules-dir', '--busybox', '--dropbear',
                                '--dropbearkey', '--wpa-supplicant', '--wpa-cli', '--iw', '--base', '--base-receipt',

@@ -108,7 +108,7 @@ producers check their own inputs and fail loudly, and no step depends on
 state only the CLI has.
 
 Agreed November 2026. It replaces the separate paths for RAM payloads
-(`payload.toml`) and distributions (`distro.toml`): today a distribution's
+(`payload.toml`) and distributions (`distro.toml`): before, a distribution's
 build entry calls orchard's internals itself (`platform.kernel()`,
 `prepare_shared()`, its own m1n1), so no orchard option (`--kernel-tree`, the
 platform, the m1n1) reaches it without its own wiring.
@@ -178,33 +178,27 @@ NFS.
 
 ### The project file
 
-One file for every project, say `orchard.toml`, replacing `payload.toml` and
-`distro.toml`. It declares what the project builds and never which board it
-is for; the kernel is the platform's, and a developer's choices (`platform`,
-`device`, `kernel-tree`) stay in arguments and `orchard.local.toml`.
+**Done:** one file for every project, `orchard.toml` (`orchard.project`),
+replacing `payload.toml` and `distro.toml`, which are still read with a
+notice to rename them. It declares what the project builds and never which
+board it is for; the kernel is the platform's, and a developer's choices
+(`platform`, `device`, `kernel-tree`) stay in arguments and
+`orchard.local.toml`.
 
 ```toml
-# A RAM example
-name = "minimal-boot"
-[root]
-init = "init"
-files = "rootfs"
-transport = false            # no USB session helper
+# A RAM example                  # A distribution
+name = "minimal-boot"            name = "minimal-linux"
+[payload]                        [release]
+transport = false                build = "tools/build.py"   # its own script composes the release
+                                 selects-platform = true
 ```
 
-```toml
-# A distribution
-name = "minimal-linux"
-[root]
-build = "tools/build-root"   # plain command: --output DIR --arch arm64
-format = "image"
-[initramfs]                  # optional: a stage 1 of its own
-[boot]
-splash = "boot/splash.png"   # data for orchard's m1n1
-cmdline = "quiet"
-[release]                    # optional: installable
-installer = true
-```
+In a distribution `orchard build` runs the script with `ORCHARD_CHECKOUT` (the
+snapshot whose producers it calls) and, with `--kernel-tree`,
+`ORCHARD_KERNEL_TREE`, which `orchard.inputs` builds the kernels from; it
+records that call as `out/releases/VERSION.commands.sh`, which `--explain`
+prints. The script's own steps are the distribution's
+([distribution-contract.md](distribution-contract.md)).
 
 ### Carried over
 
