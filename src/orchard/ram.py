@@ -183,7 +183,7 @@ def resolve_platform(directory, hardware, *, platform=None, device=None):
 
 
 def build_directory(directory, *, hardware=None, cache=None, kernel=None,
-                    busybox=None, loader=None, pongo=None, platform=None, device=None):
+                    busybox=None, loader=None, pongo=None, platform=None, device=None, kernel_tree=None):
     """Build DIRECTORY/init plus optional DIRECTORY/rootfs/ for every board of one platform.
 
     The payload goes to DIRECTORY/out/PLATFORM/. Unless payload.toml says
@@ -228,8 +228,11 @@ def build_directory(directory, *, hardware=None, cache=None, kernel=None,
             if destination in files:
                 raise ValueError(f'rootfs/ provides {destination}; set transport = false in payload.toml to supply your own')
             files[destination] = source
+    tree = build.resolve_kernel_tree(directory, kernel_tree) if kernel is None else None
+    if tree is not None:
+        print(f'Kernel from the tree {tree}', flush=True)
     components = build.prepare_components(hardware, cache, device=representative, kernel=kernel,
-                                          busybox=busybox, loader=loader, pongo=pongo)
+                                          busybox=busybox, loader=loader, pongo=pongo, kernel_tree=tree)
     hostname = re.sub(r'[^A-Za-z0-9_-]', '-', directory.name).strip('-_')[:63] or 'orchard-ram'
     assemble_ram(hardware, output, **components, init=init, files=files, modules=settings['modules'],
                  hostname=hostname, platform=platform, boards=boards)
@@ -237,6 +240,7 @@ def build_directory(directory, *, hardware=None, cache=None, kernel=None,
     # Catch newly added/removed overlay files too, not only changes to old inputs.
     receipt['overlay'] = {'path': str(overlay), 'sha256': recipe_key(directory, ['rootfs'], ignore=())}
     receipt['firmware'] = settings['firmware']
+    receipt['kernel_tree'] = str(tree) if tree is not None else None
     (output / 'build.json').write_text(json.dumps(receipt, indent=2) + '\n')
     return output
 

@@ -69,14 +69,15 @@ def local_settings(directory):
     """The nearest orchard.local.toml from DIRECTORY up to its repository's root.
 
     This checkout's own choices, never committed: sticky defaults for
-    --device ("BOARD") and --platform ("PLATFORM" or "all"), and orchard =
-    "PATH" (the orchard checkout to use; read by the launcher).
+    --device ("BOARD"), --platform ("PLATFORM" or "all") and --kernel-tree
+    ("PATH", relative to the file), and orchard = "PATH" (the orchard checkout
+    to use; read by the launcher).
     """
     directory = Path(directory).expanduser().resolve()
     for parent in (directory, *directory.parents):
         path = parent / LOCAL
         if path.exists():
-            return _toml(path, ('device', 'platform', 'orchard')), path
+            return _toml(path, ('device', 'platform', 'orchard', 'kernel-tree')), path
         if (parent / '.git').exists():
             break
     return {}, None
@@ -106,6 +107,18 @@ def configured_platform(directory):
     if not isinstance(settings['platform'], str) or not _BOARD.fullmatch(settings['platform']):
         raise ValueError(f'{path}: invalid platform name')
     return settings['platform']
+
+
+def resolve_kernel_tree(directory, tree=None):
+    """--kernel-tree, else this checkout's kernel-tree (orchard.local.toml, relative to it); or None."""
+    if tree is not None:
+        return Path(tree).expanduser().resolve()
+    settings, path = local_settings(directory)
+    if 'kernel-tree' not in settings:
+        return None
+    if not isinstance(settings['kernel-tree'], str) or not settings['kernel-tree']:
+        raise ValueError(f'{path}: kernel-tree must be a path')
+    return (path.parent / Path(settings['kernel-tree']).expanduser()).resolve()
 
 
 def configured_device(directory):
@@ -166,7 +179,7 @@ def cache_root():
     return sources.cache_root()
 
 
-def kernel_base_inputs(hardware, device, cache):
+def kernel_base_inputs(hardware, device, cache, tree=None):
     """What determines a platform's compiled kernel; the same before and after source checkout.
 
     The source tree (upstream base plus the platform's patch series), the
@@ -177,6 +190,16 @@ def kernel_base_inputs(hardware, device, cache):
     """
     platform = kernels.layout(hardware, device)[0]
     described = kernels.descriptor(hardware, device)
+    if tree is not None:
+        # A developer's tree: its content (its own defconfig included), not orchard's series or config.
+        return {
+            'platform': platform, 'source': 'kernel-tree',
+            'build': {key: described[key] for key in ('arch', 'image', 'dtbs', 'defconfig')},
+            'recipes': recipe_entries(hardware, ['kernel/Containerfile', 'kernel/install-toolchain']),
+            'producer': KERNEL_PRODUCER,
+            'tree': sources.working_tree(tree, force=False),
+            'mode': os.environ.get('ORCHARD_BUILD_NATIVE', '0') + ':' + os.environ.get('ORCHARD_BUILD_ENV_ID', ''),
+        }
     return {
         'platform': platform,
         'build': {key: described[key] for key in ('arch', 'image', 'dtbs')},
@@ -401,24 +424,29 @@ def _check_kernel_recipe(hardware, device):
     kernels.descriptor(hardware, device)
 
 
-def _prepare_kernel(hardware, cache, device):
-    """Resolve one coherent kernel/DTB/module bundle under the component lock."""
+def _prepare_kernel(hardware, cache, device, tree=None):
+    """Resolve one coherent kernel/DTB/module bundle under the component lock.
+
+    TREE: a developer's kernel tree, built as it is; its results are cached
+    apart from orchard's own kernels (kernel-tree-*), so they never displace them.
+    """
     components = cache / 'components-v2'
     platform = kernels.layout(hardware, device)[0]
-    base_key = keyed(lambda: kernel_base_inputs(hardware, device, cache))
+    prefix = 'kernel-tree-' if tree is not None else 'kernel-'
+    base_key = keyed(lambda: kernel_base_inputs(hardware, device, cache, tree))
     def produce_base(stage):
-        with kernels.tree_lock(hardware, device):
-            kernels.build_base(hardware, cache, device, stage / 'kernel')
-    base = cached_component(components, 'kernel-base-' + platform, base_key, produce_base) / 'kernel'
+        with kernels.tree_lock(hardware, device, tree):
+            kernels.build_base(hardware, cache, device, stage / 'kernel', tree=tree)
+    base = cached_component(components, prefix + 'base-' + platform, base_key, produce_base) / 'kernel'
     def produce_kernel(stage):
-        with kernels.tree_lock(hardware, device):
-            kernels.build_device(hardware, cache, device, base, stage / 'kernel')
-    directory = cached_component(components, 'kernel-' + device,
+        with kernels.tree_lock(hardware, device, tree):
+            kernels.build_device(hardware, cache, device, base, stage / 'kernel', tree=tree)
+    directory = cached_component(components, prefix + device,
         keyed(lambda: kernel_inputs(hardware, device, base.parent.name)), produce_kernel)
     return directory / 'kernel'
 
 
-def prepare_kernel(hardware=None, cache=None, *, device):
+def prepare_kernel(hardware=None, cache=None, *, device, kernel_tree=None):
     """Build/reuse a coherent kernel, DTB and modules, without boot/tool producers.
 
     Defaults to the active hardware package and normal shared Orchard cache.
@@ -426,8 +454,9 @@ def prepare_kernel(hardware=None, cache=None, *, device):
     """
     hardware, cache = _build_context(hardware, cache, device)
     _check_kernel_recipe(hardware, device)
+    tree = kernels.check_tree(hardware, device, kernel_tree) if kernel_tree is not None else None
     with component_lock(cache):
-        return _prepare_kernel(hardware, cache, device)
+        return _prepare_kernel(hardware, cache, device, tree)
 
 
 def has_loader_patches(hardware):
@@ -558,7 +587,7 @@ def _prepare_m1n1(hardware, components, device):
 
 
 def prepare_components(hardware=None, cache=None, *, device, kernel=None,
-                       busybox=None, loader=None, pongo=None):
+                       busybox=None, loader=None, pongo=None, kernel_tree=None):
     """Build/reuse components shared by experiments and larger images.
 
     Explicit component paths bypass their producers. The returned paths are not
@@ -569,13 +598,16 @@ def prepare_components(hardware=None, cache=None, *, device, kernel=None,
     components = cache / 'components-v2'
     if kernel is None:
         _check_kernel_recipe(hardware, device)
+    if kernel is not None and kernel_tree is not None:
+        raise ValueError('Give a staged kernel (--kernel-dir) or a kernel tree (--kernel-tree), not both')
+    tree = kernels.check_tree(hardware, device, kernel_tree) if kernel_tree is not None else None
     if loader is None and not has_loader_patches(hardware):
         raise ValueError(f'Missing loader patches for {device}; add a loader recipe or supply --loader FILE')
     with component_lock(cache):
         if pongo is None:
             pongo = _prepare_pongo(hardware, components)
         if kernel is None:
-            kernel = _prepare_kernel(hardware, cache, device)
+            kernel = _prepare_kernel(hardware, cache, device, tree)
         if busybox is None:
             busybox = _prepare_tools(hardware, components) / 'busybox'
         if loader is None:

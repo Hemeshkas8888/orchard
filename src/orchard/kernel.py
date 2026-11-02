@@ -7,6 +7,7 @@ names its platform and DTB in devices/<device>/device.toml.
 """
 from contextlib import contextmanager
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -52,27 +53,55 @@ def shared_tree(hardware):
     return builder.is_file() and '--work-dir' in builder.read_text()
 
 
-def work_directory(hardware, device):
+def work_directory(hardware, device, tree=None):
     """The incremental kernel tree hardware's kernel/build compiles in.
 
     Current hardware shares one tree per platform and upstream pin between all
     checkouts, in the Orchard cache; older hardware keeps it in the checkout.
-    Never move or reset it: it holds editable source and compiler output.
+    Never move or reset it: it holds editable source and compiler output. A
+    developer's kernel tree (TREE) gets a build directory of its own.
     """
     platform = layout(hardware, device)[0]
+    if tree is not None:
+        digest = hashlib.sha256(str(Path(tree).resolve()).encode()).hexdigest()[:12]
+        return sources.cache_root() / 'kernel-work' / f'tree-{platform}-{digest}'
     if shared_tree(hardware):
         return sources.cache_root() / 'kernel-work' / f"{platform}-{pin(hardware, device)['commit'][:12]}"
     return Path(hardware) / 'kernel/.work' / platform
 
 
+def check_tree(hardware, device, tree):
+    """A developer's kernel tree: a git checkout with the platform's defconfig."""
+    tree = Path(tree).expanduser().resolve()
+    described = descriptor(hardware, device)
+    defconfig = tree / 'arch' / described['arch'] / 'configs' / described['defconfig']
+    if not (tree / 'Makefile').is_file() or not defconfig.is_file():
+        raise ValueError(f'{tree} is not a kernel tree with arch/{described["arch"]}/configs/'
+                         f'{described["defconfig"]} (the {described["platform"]} defconfig)')
+    if subprocess.run(['git', '-C', str(tree), 'rev-parse', '--git-dir'], capture_output=True).returncode:
+        raise ValueError(f'{tree} is not a git checkout; orchard identifies a kernel tree by its content')
+    return tree
+
+
+def _source(hardware, cache, device, tree):
+    """(source, compiler output): orchard's patched tree, or the developer's TREE as it is."""
+    if tree is None:
+        return prepare_source(hardware, cache, device)
+    return Path(tree).resolve(), work_directory(hardware, device, tree) / 'output'
+
+
+def _identity(source, tree):
+    return sources.working_tree(source, force=tree is None)
+
+
 @contextmanager
-def tree_lock(hardware, device):
+def tree_lock(hardware, device, tree=None):
     """Exclusive use of the kernel tree, shared with kernel/build run by anyone.
 
     kernel/build takes the same lock unless ORCHARD_KERNEL_WORK_LOCKED names
     its tree, so the CLI holds it across source preparation and the build.
     """
-    work = work_directory(hardware, device)
+    work = work_directory(hardware, device, tree)
     work.mkdir(parents=True, exist_ok=True)
     with (work / '.lock').open('a') as lock:
         try:
@@ -194,7 +223,7 @@ def prepare_source(hardware, cache, device):
     return source, work / 'output'
 
 
-def build_base(hardware, cache, device, output):
+def build_base(hardware, cache, device, output, tree=None):
     """One-time fill using hardware's existing full producer, not a new API.
 
     Retain only the kernel/in-tree modules and an SDK. The producer also builds
@@ -203,11 +232,13 @@ def build_base(hardware, cache, device, output):
     """
     from .build import command
     hardware, output = Path(hardware), Path(output)
-    source, compiler_output = prepare_source(hardware, cache, device)
-    tree = sources.working_tree(source)
-    with tempfile.TemporaryDirectory(prefix='base-', dir=work_directory(hardware, device)) as temporary:
+    source, compiler_output = _source(hardware, cache, device, tree)
+    identity = _identity(source, tree)
+    with tempfile.TemporaryDirectory(prefix='base-', dir=work_directory(hardware, device, tree)) as temporary:
         work = Path(temporary)
-        extra = ['--work-dir', str(work_directory(hardware, device))] if shared_tree(hardware) else []
+        extra = ['--work-dir', str(work_directory(hardware, device, tree))] if shared_tree(hardware) or tree else []
+        if tree is not None:
+            extra += ['--kernel-tree', str(source)]
         command(hardware / 'kernel/build', device, '--resume', *extra, '--output', work / 'full')
         command(sys.executable, hardware / 'kernel/stage-modules.py',
                 '--build', compiler_output, '--output', work / 'in-tree')
@@ -217,29 +248,30 @@ def build_base(hardware, cache, device, output):
         shutil.copytree(work / 'full/dtbs', output / 'dtbs')
         shutil.copytree(work / 'in-tree/lib', output / 'lib')
         export_sdk(compiler_output, output / 'sdk', descriptor(hardware, device)['arch'])
-        (output / 'inputs.json').write_text(json.dumps({'source_tree': tree}) + '\n')
-    if sources.working_tree(source) != tree:
+        (output / 'inputs.json').write_text(json.dumps({'source_tree': identity}) + '\n')
+    if _identity(source, tree) != identity:
         raise ValueError('Kernel source changed during build; refusing result')
 
 
-def build_device(hardware, cache, device, base, output):
+def build_device(hardware, cache, device, base, output, tree=None):
     """Select the device DTB; build any external modules with a PRIVATE cached-SDK copy."""
     from .build import command
     hardware, base, output = map(Path, (hardware, base, output))
     platform_name, dtb = layout(hardware, device)
     described = descriptor(hardware, device)
-    source, _ = prepare_source(hardware, cache, device)
-    tree = sources.working_tree(source)
-    if json.loads((base / 'inputs.json').read_text())['source_tree'] != tree:
+    source, _ = _source(hardware, cache, device, tree)
+    identity = _identity(source, tree)
+    if json.loads((base / 'inputs.json').read_text())['source_tree'] != identity:
         raise ValueError('Cached kernel source identity differs; rebuild the base')
-    if (base / 'sdk/.config').read_bytes() != (hardware / described['config']).read_bytes():
+    # A developer's tree brings its own defconfig; orchard's config is for its own tree.
+    if tree is None and (base / 'sdk/.config').read_bytes() != (hardware / described['config']).read_bytes():
         raise ValueError('Cached kernel configuration differs; rebuild the base')
     release = (base / 'kernel.release').read_text().strip()
     if not release or '/' in release or len(release.split()) != 1:
         raise ValueError('Invalid kernel release')
     if (base / 'sdk/include/config/kernel.release').read_text().strip() != release:
         raise ValueError('Cached module SDK release differs')
-    with tempfile.TemporaryDirectory(prefix='modules-', dir=work_directory(hardware, device)) as temporary:
+    with tempfile.TemporaryDirectory(prefix='modules-', dir=work_directory(hardware, device, tree)) as temporary:
         work = Path(temporary)
         sdk = work / 'output'
         shutil.copytree(base / 'sdk', sdk)
@@ -271,5 +303,5 @@ def build_device(hardware, cache, device, base, output):
         # Every board of the platform: an installed root serves all of them.
         shutil.copytree(base / 'dtbs', output / 'dtbs')
         shutil.copytree(work / 'staged/lib', output / 'lib')
-    if sources.working_tree(source) != tree:
+    if _identity(source, tree) != identity:
         raise ValueError('Kernel source changed during module build; refusing result')

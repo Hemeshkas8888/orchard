@@ -93,8 +93,13 @@ def declared_tree(url, commit, patches, *, cache=None, donor=None):
             return tree
 
 
-def working_tree(source):
-    """Snapshot tracked/untracked source edits without changing the user's index."""
+def working_tree(source, *, force=True):
+    """Snapshot tracked/untracked source edits without changing the user's index.
+
+    force also takes files the tree's .gitignore matches: orchard's own kernel
+    trees build elsewhere, so nothing in them is rightly ignored. A developer's
+    kernel tree (force=False) keeps its ignore rules, for in-tree build output.
+    """
     source = Path(source).resolve()
     with tempfile.TemporaryDirectory(prefix='orchard-index-') as temporary:
         index = Path(temporary) / 'index'
@@ -110,7 +115,7 @@ def working_tree(source):
         # ignore pattern like the kernel's *.s would drop a new headsmp.S from
         # the snapshot. The kernel builds into a separate directory, so the
         # source holds no files that are rightly ignored.
-        git(source, 'add', '--all', '--force', '--', '.', env=env)
+        git(source, 'add', '--all', *(['--force'] if force else []), '--', '.', env=env)
         return git(source, 'write-tree', env=env).decode()
 
 

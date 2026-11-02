@@ -39,6 +39,8 @@ def main():
         command.add_argument('--hardware', type=Path, help='use the hardware data and recipes of another orchard checkout')
         command.add_argument('--cache', type=Path, help='override the shared component cache')
         command.add_argument('--kernel-dir', type=Path, help='reuse a staged kernel/DTB/module tree')
+        command.add_argument('--kernel-tree', type=Path, help='build this kernel tree as it is, with its own '
+                             'defconfig (default: kernel-tree in orchard.local.toml, else orchard\'s own kernel)')
         for component in ('pongo', 'busybox', 'loader'):
             command.add_argument('--' + component, type=Path, help='reuse this local component')
     cached = commands.add_parser('cache', help='list, remove or prune shared build components; no device access')
@@ -105,7 +107,7 @@ def main():
         if args.action in ('build', 'run'):
             from orchard import distro
             root = distro.find(args.directory)
-            payload_only = [name for name in ('hardware', 'cache', 'kernel_dir',
+            payload_only = [name for name in ('hardware', 'cache', 'kernel_dir', 'kernel_tree',
                                               'pongo', 'busybox', 'loader') if getattr(args, name) is not None]
             if root is not None:
                 if payload_only:
@@ -143,7 +145,8 @@ def main():
             from orchard.ram import build_directory
             build_directory(args.directory, hardware=args.hardware, cache=args.cache,
                             kernel=args.kernel_dir, busybox=args.busybox, loader=args.loader,
-                            pongo=args.pongo, device=args.device, platform=platform)
+                            pongo=args.pongo, device=args.device, platform=platform,
+                            kernel_tree=args.kernel_tree)
             return
         if args.action in ('shell', 'exec', 'push', 'pull'):
             from orchard import ram_session
@@ -177,7 +180,8 @@ def main():
             from orchard.boot import run_directory
             run_directory(args.directory, yes=args.yes, build=not args.no_build, device=args.device,
                           platform=platform, hardware=args.hardware, cache=args.cache,
-                          kernel=args.kernel_dir, busybox=args.busybox, loader=args.loader, pongo=args.pongo)
+                          kernel=args.kernel_dir, busybox=args.busybox, loader=args.loader, pongo=args.pongo,
+                          kernel_tree=args.kernel_tree)
             return
         with ExitStack() as stack:
             if args.action in ('boot', 'capture-adt'):
