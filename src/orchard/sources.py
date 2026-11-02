@@ -108,7 +108,10 @@ def working_tree(source, *, force=True):
             original = source / original
         env = {**os.environ, 'GIT_INDEX_FILE': str(index)}
         if original.exists():
-            shutil.copyfile(original, index)
+            # copy2 keeps the index's mtime: git re-hashes a file whose mtime is
+            # not older than the index ("racy git"), so an edit in the same second
+            # as the last index write, with the same size, is still seen.
+            shutil.copy2(original, index)
         else:
             git(source, 'read-tree', 'HEAD', env=env)
         # --force: on a case-insensitive filesystem git ignores case too, so an
