@@ -630,15 +630,18 @@ def prepare_components(hardware=None, cache=None, *, device, kernel=None,
 
 
 def prepare_shared(hardware=None, cache=None):
-    """Pongo and the static recovery tools, which every platform shares, built or reused.
+    """Pongo, orchard's m1n1 and the static recovery tools, which every platform shares, built or reused.
 
-    {'pongo': Path, 'tools': directory}; the tools directory holds busybox,
-    dropbear, dropbearkey, wpa_supplicant, wpa_cli and iw.
+    {'pongo': Path, 'loader': m1n1.bin, 'tools': directory}; the tools
+    directory holds busybox, dropbear, dropbearkey, wpa_supplicant, wpa_cli
+    and iw. A distribution's splash is data for this m1n1 (assemble.py --logo),
+    not a m1n1 of its own.
     """
     hardware, cache = _build_context(hardware, cache, 'apple')
     components = cache / 'components-v2'
     with component_lock(cache):
         return {'pongo': _prepare_pongo(hardware, components).resolve(),
+                'loader': _prepare_m1n1(hardware, components, 'apple').resolve(),
                 'tools': _prepare_tools(hardware, components).resolve()}
 
 

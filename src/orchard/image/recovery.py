@@ -18,6 +18,7 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--dtb', type=Path, action='append', required=True,
                         help='the DTB of each device this recovery boots; repeat')
+    parser.add_argument('--logo', type=Path, help="the distribution's m1n1 logo payload (see assemble.py)")
     diagnostics = parser.add_mutually_exclusive_group()
     diagnostics.add_argument('--verbose', action='store_true',
                              help='enable visible Linux framebuffer console and kernel diagnostics')
@@ -45,6 +46,7 @@ def main():
         subprocess.run([sys.executable, '-m', 'orchard.image.assemble',
                         '--manifest', str(HERE / manifest),
                         '--loader', str(args.loader), *(f'--dtb={dtb}' for dtb in args.dtb),
+                        *(['--logo', str(args.logo)] if args.logo else []),
                         '--kernel', str(args.kernel), '--initramfs', str(initramfs),
                         '--output', str(args.output)], check=True)
 
