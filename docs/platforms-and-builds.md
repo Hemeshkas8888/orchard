@@ -310,6 +310,11 @@ supplies the build code today goes away.
 - Pinning stays: `orchard.local.toml` names a nightly, a release or a
   checkout of your own, and `--kernel-tree` a kernel tree; a checkout of
   your own compiles, or takes a published kernel whose source key matches.
+  `--kernel-tree` stays a path: a branch without a clone of one's own is
+  `git clone --depth 1 -b BRANCH https://github.com/OrchardLinux/linux`.
+- **Later, for testers:** a pull request's or branch's kernel built by CI
+  like a nightly's and taken finished (`orchard run --kernel pr:N` or its
+  artifact), so testing a kernel change needs no compile at all.
 
 **Planned, at the switch** (trees authoritative): a nightly is a tuple of
 commits, recorded in `nightly.json`: orchard (descriptors, device data,
