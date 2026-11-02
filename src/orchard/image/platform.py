@@ -184,9 +184,13 @@ def main():
     parser.add_argument('--output', type=Path, required=True, help='directory for the layer')
     parser.add_argument('--kernel-dir', type=Path, help='a staged kernel bundle (default: build or reuse it)')
     parser.add_argument('--busybox', type=Path, help="orchard's static BusyBox (default: build or reuse it)")
+    parser.add_argument('--receipt', type=Path, help="also write the layer's receipt (JSON) here")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-    print(json.dumps(build(args.platform, args.output, bundle=args.kernel_dir, busybox=args.busybox), indent=2))
+    receipt = build(args.platform, args.output, bundle=args.kernel_dir, busybox=args.busybox)
+    if args.receipt:
+        args.receipt.write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
+    print(json.dumps(receipt, indent=2))
 
 
 if __name__ == '__main__':
