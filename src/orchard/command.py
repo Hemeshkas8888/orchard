@@ -33,7 +33,9 @@ def main():
                              '(default: dev-DATE-TIME)')
         command.add_argument('--device', help='a board; its platform is built (default: orchard.local.toml, '
                              'else the attached device)')
-        command.add_argument('--platform', help='the platform to build, e.g. apple-16k')
+        command.add_argument('--platform', action='append',
+                             help='the platform to build, e.g. apple-16k; a distribution checkout takes it '
+                             'more than once, or all (default: orchard.local.toml, else the attached board)')
         command.add_argument('--hardware', type=Path, help='use the hardware data and recipes of another orchard checkout')
         command.add_argument('--cache', type=Path, help='override the shared component cache')
         command.add_argument('--kernel-dir', type=Path, help='reuse a staged kernel/DTB/module tree')
@@ -103,14 +105,26 @@ def main():
         if args.action in ('build', 'run'):
             from orchard import distro
             root = distro.find(args.directory)
-            payload_only = [name for name in ('device', 'platform', 'hardware', 'cache', 'kernel_dir',
+            payload_only = [name for name in ('hardware', 'cache', 'kernel_dir',
                                               'pongo', 'busybox', 'loader') if getattr(args, name) is not None]
             if root is not None:
                 if payload_only:
                     raise ValueError(f'--{payload_only[0].replace("_", "-")} is for RAM payloads; '
                                      f'{root} is a distribution checkout (distro.toml)')
+                if args.action == 'run' and (args.platform or args.device):
+                    raise ValueError('orchard run boots the attached board: it takes no --platform or --device')
                 if args.action == 'build':
-                    distro.build(root, version=args.version)
+                    platforms = None
+                    if distro.settings(root)['selects_platform']:
+                        from orchard import ram
+                        from orchard.hardware import ROOT
+                        platforms = ram.resolve_platforms(root, ROOT, platforms=args.platform or (),
+                                                          device=args.device)
+                    elif args.platform or args.device:
+                        raise ValueError(f'{root.name}\'s build entry builds every platform and takes no '
+                                         '--platform or --device; update the distribution '
+                                         '(distro.toml selects-platform = true)')
+                    distro.build(root, version=args.version, platforms=platforms)
                 else:
                     if args.no_build and args.version:
                         raise ValueError('--no-build boots the last build; leave out --version')
@@ -120,11 +134,16 @@ def main():
                 return
             if args.version is not None:
                 raise ValueError('--version is for distribution checkouts (distro.toml)')
+        platform = None
+        if args.action in ('build', 'run') and args.platform:
+            if len(args.platform) > 1 or 'all' in args.platform:
+                raise ValueError('A RAM payload is built for one platform: give --platform once')
+            platform = args.platform[0]
         if args.action == 'build':
             from orchard.ram import build_directory
             build_directory(args.directory, hardware=args.hardware, cache=args.cache,
                             kernel=args.kernel_dir, busybox=args.busybox, loader=args.loader,
-                            pongo=args.pongo, device=args.device, platform=args.platform)
+                            pongo=args.pongo, device=args.device, platform=platform)
             return
         if args.action in ('shell', 'exec', 'push', 'pull'):
             from orchard import ram_session
@@ -157,7 +176,7 @@ def main():
         if args.action == 'run':
             from orchard.boot import run_directory
             run_directory(args.directory, yes=args.yes, build=not args.no_build, device=args.device,
-                          platform=args.platform, hardware=args.hardware, cache=args.cache,
+                          platform=platform, hardware=args.hardware, cache=args.cache,
                           kernel=args.kernel_dir, busybox=args.busybox, loader=args.loader, pongo=args.pongo)
             return
         with ExitStack() as stack:

@@ -64,14 +64,15 @@ def payload_settings(directory):
 def local_settings(directory):
     """The nearest orchard.local.toml from DIRECTORY up to its repository's root.
 
-    This checkout's own choices, never committed: device = "BOARD" and
-    orchard = "PATH" (the orchard checkout to use; read by the launcher).
+    This checkout's own choices, never committed: sticky defaults for
+    --device ("BOARD") and --platform ("PLATFORM" or "all"), and orchard =
+    "PATH" (the orchard checkout to use; read by the launcher).
     """
     directory = Path(directory).expanduser().resolve()
     for parent in (directory, *directory.parents):
         path = parent / LOCAL
         if path.exists():
-            return _toml(path, ('device', 'orchard')), path
+            return _toml(path, ('device', 'platform', 'orchard')), path
         if (parent / '.git').exists():
             break
     return {}, None
@@ -91,6 +92,16 @@ def resolve_device(directory, device=None):
             raise ValueError(f'{path}: invalid device name')
         return settings['device']
     return None
+
+
+def configured_platform(directory):
+    """This checkout's platform = "PLATFORM" or "all" (orchard.local.toml), or None."""
+    settings, path = local_settings(directory)
+    if 'platform' not in settings:
+        return None
+    if not isinstance(settings['platform'], str) or not _BOARD.fullmatch(settings['platform']):
+        raise ValueError(f'{path}: invalid platform name')
+    return settings['platform']
 
 
 def configured_device(directory):

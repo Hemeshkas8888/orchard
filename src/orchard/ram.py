@@ -125,9 +125,45 @@ def boards_by_platform(hardware):
     return result
 
 
-def resolve_platform(directory, hardware, *, platform=None, device=None):
-    """--platform, else the platform of --device, orchard.local.toml or the attached board."""
+def resolve_platforms(directory, hardware, *, platforms=(), device=None, allow_all=True):
+    """The platforms to build: --platform (repeatable, or all), else --device,
+    else orchard.local.toml (platform, else device), else the attached board.
+
+    Returns a sorted list of platform names, or 'all'. A local build never
+    means every platform unless all is asked for.
+    """
     known = boards_by_platform(hardware)
+    listing = ', '.join(sorted(known))
+    chosen, source = list(platforms or ()), '--platform'
+    if not chosen and device is None:
+        configured = build.configured_platform(directory)
+        if configured is not None:
+            chosen, source = [configured], str(build.local_settings(directory)[1])
+            board = build.configured_device(directory)
+            if board is not None and configured in known and board not in known[configured]:
+                raise ValueError(f'{source}: device {board} is not a board of platform {configured}')
+    if chosen:
+        if 'all' in chosen:
+            if len(chosen) > 1 or not allow_all:
+                raise ValueError(f'{source}: all builds every platform; it combines with no other '
+                                 'and is for distribution builds' if allow_all else
+                                 f'{source}: a payload is built for one platform; name it')
+            return 'all'
+        unknown = sorted(set(chosen) - set(known))
+        if unknown:
+            raise ValueError(f'Unknown platform {", ".join(unknown)} ({source}); known: {listing}')
+        return sorted(set(chosen))
+    return [resolve_platform(directory, hardware, device=device)]
+
+
+def resolve_platform(directory, hardware, *, platform=None, device=None):
+    """One platform: --platform, else the platform of --device, orchard.local.toml or the attached board."""
+    known = boards_by_platform(hardware)
+    if platform is None and device is None:
+        selected = resolve_platforms(directory, hardware, allow_all=False) \
+            if build.configured_platform(directory) is not None else None
+        if selected is not None:
+            return selected[0]
     if platform is not None:
         if platform not in known:
             raise ValueError(f'Unknown platform {platform}; known: {", ".join(sorted(known))}')

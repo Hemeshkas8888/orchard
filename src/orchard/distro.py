@@ -4,10 +4,16 @@
 
     name = "omarchy-a"          # the distro of its index.toml
     build = "tools/build"       # its build entry, relative to the checkout
+    selects-platform = true     # optional: the entry takes --platform
 
 In that checkout `orchard build` runs the entry as
 
-    ENTRY --version VERSION --output out/releases/VERSION
+    ENTRY --version VERSION --output out/releases/VERSION [--platform NAME ...]
+
+With selects-platform the entry builds only the platforms it is given
+(--platform all: every one): orchard passes --platform/--device, else
+orchard.local.toml, else the attached board's platform, and never all
+unless asked. Without it the entry builds every platform, as before.
 
 with orchard's Python (a `.py` entry) or directly (anything else, with
 ORCHARD_PYTHON set). The entry builds what is missing and writes a release
@@ -57,9 +63,13 @@ def settings(root):
             value = tomllib.load(stream)
     except (OSError, ValueError) as error:
         raise ValueError(f'{path}: {error}') from error
-    unknown = set(value) - {'name', 'build'}
+    unknown = set(value) - {'name', 'build', 'selects-platform'}
     if unknown:
-        raise ValueError(f'{path}: unknown settings {", ".join(sorted(unknown))}; expected name, build')
+        raise ValueError(f'{path}: unknown settings {", ".join(sorted(unknown))}; '
+                         'expected name, build, selects-platform')
+    selects = value.get('selects-platform', False)
+    if not isinstance(selects, bool):
+        raise ValueError(f'{path}: selects-platform must be true or false')
     name, build = value.get('name'), value.get('build')
     if not isinstance(name, str) or not _NAME.fullmatch(name):
         raise ValueError(f'{path}: name must be the distro name of its index, e.g. "omarchy-a"')
@@ -71,7 +81,7 @@ def settings(root):
         raise ValueError(f'{path}: the build entry {build} is not a file')
     if entry.suffix != '.py' and not os.access(entry, os.X_OK):
         raise ValueError(f'{path}: the build entry {build} is not executable')
-    return {'name': name, 'build': entry}
+    return {'name': name, 'build': entry, 'selects_platform': selects}
 
 
 def default_version(now=None):
@@ -80,8 +90,13 @@ def default_version(now=None):
     return now.strftime('dev-%Y%m%d-%H%M%S')
 
 
-def build(root, *, version=None):
-    """Run ROOT's build entry into out/releases/VERSION, check the release, record it; returns its index."""
+def build(root, *, version=None, platforms=None):
+    """Run ROOT's build entry into out/releases/VERSION, check the release, record it; returns its index.
+
+    PLATFORMS: a list of platform names or 'all', passed as --platform to an
+    entry that selects platforms (distro.toml selects-platform = true); None
+    for an entry that builds every platform.
+    """
     from .hardware import ROOT
     from .manifests import resolve_local, verify_local_receipts
     root = Path(root).resolve()
@@ -96,6 +111,15 @@ def build(root, *, version=None):
     entry = distro['build']
     argv = [sys.executable, str(entry)] if entry.suffix == '.py' else [str(entry)]
     argv += ['--version', version, '--output', str(output)]
+    if platforms is not None:
+        if not distro['selects_platform']:
+            raise ValueError(f'{distro["name"]}\'s build entry builds every platform and takes no --platform; '
+                             'update the distribution (distro.toml selects-platform = true)')
+        argv += [part for name in ([platforms] if platforms == 'all' else platforms)
+                 for part in ('--platform', name)]
+    elif distro['selects_platform']:
+        raise ValueError(f'{distro["name"]} selects its platforms: choose with --platform, --device, '
+                         'orchard.local.toml or the attached board')
     print('+', ' '.join(argv), flush=True)
     environment = {**os.environ, 'ORCHARD_PYTHON': sys.executable, 'ORCHARD_CHECKOUT': str(ROOT)}
     subprocess.run(argv, cwd=root, env=environment, check=True)
@@ -139,7 +163,20 @@ def run(root, *, build_first=True, version=None, yes=False, progress=None):
     from .devices import choose
     from .releases import resolve
     from .state import operation_lock
-    index = build(root, version=version) if build_first else latest(root)
+    if build_first:
+        platforms = None
+        if settings(root)['selects_platform']:
+            # Only what the attached board needs: its platform's recovery and layer.
+            from . import ram
+            from .devices import attached_board
+            from .hardware import ROOT
+            board = attached_board()
+            if board is None:
+                raise ValueError('No described device is attached: connect it, then run again')
+            platforms = [ram.resolve_platform(root, ROOT, device=board)]
+        index = build(root, version=version, platforms=platforms)
+    else:
+        index = latest(root)
     with operation_lock():
         adapter, device = choose()
         record, assets = resolve(str(index), adapter.PROFILE, progress, purpose='boot')
