@@ -13,8 +13,10 @@ import struct
 import sys
 import tempfile
 
-from . import build
+from . import build, explain
 from .build import command, digest, recipe_key
+
+IMAGE = Path(__file__).resolve().parent / 'image'  # standalone scripts, run by path
 
 
 def check_busybox(path):
@@ -76,7 +78,10 @@ def assemble_ram(hardware, output, *, kernel, busybox, loader, pongo, init,
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
             target.chmod(Path(source).stat().st_mode & 0o777)
-        command(sys.executable, '-m', 'orchard.image.initramfs', '--root', root,
+        explain.note(f'root ({root}): orchard laid out BusyBox at bin/busybox, init, etc/hostname'
+                     f'{", the kernel modules" if modules else ""} and {len(files or {})} files '
+                     '(rootfs/ and the session helper); any directory of that shape works')
+        command(sys.executable, IMAGE / 'initramfs.py', '--root', root,
                 '--output', work / 'initramfs.cpio.gz')
         dtbs = [kernel / 'dtbs' / (dtb + '.dtb') for dtb in boards.values()]
         for path in dtbs:
@@ -101,7 +106,7 @@ def assemble_ram(hardware, output, *, kernel, busybox, loader, pongo, init,
 
 
 def assemble(bootargs, loader, dtbs, kernel, initramfs, output):
-    command(sys.executable, '-m', 'orchard.image.assemble', '--bootargs', bootargs, '--loader', loader,
+    command(sys.executable, IMAGE / 'assemble.py', '--bootargs', bootargs, '--loader', loader,
             *(argument for dtb in dtbs for argument in ('--dtb', dtb)), '--kernel', kernel,
             '--initramfs', initramfs, '--output', output)
 
@@ -190,6 +195,18 @@ def build_directory(directory, *, hardware=None, cache=None, kernel=None,
     run` adds the booted board's (with_firmware).
     """
     directory = Path(directory).expanduser().resolve()
+    explain.start()
+    try:
+        output = _build_directory(directory, hardware=hardware, cache=cache, kernel=kernel, busybox=busybox,
+                                  loader=loader, pongo=pongo, platform=platform, device=device,
+                                  kernel_tree=kernel_tree)
+    finally:
+        steps = explain.stop()
+    (output / 'commands.sh').write_text(explain.script(steps, title=f'orchard build {directory} ({output.name})'))
+    return output
+
+
+def _build_directory(directory, *, hardware, cache, kernel, busybox, loader, pongo, platform, device, kernel_tree):
     settings = build.payload_settings(directory)
     if hardware is None:
         from .hardware import ROOT

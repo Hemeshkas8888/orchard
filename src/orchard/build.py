@@ -18,7 +18,7 @@ import tempfile
 
 import tomllib
 
-from . import sources, kernel as kernels
+from . import explain, sources, kernel as kernels
 
 # The kernel producers' version: kernel/build, kernel/build-modules,
 # kernel/stage-modules.py, kernel/series.py, src/orchard/buildenv.py,
@@ -137,6 +137,7 @@ def digest(path):
 def command(*argv, env=None):
     """Run a hardware recipe. Its Python is Orchard's own."""
     print('+', ' '.join(map(str, argv)), flush=True)
+    explain.command(argv)
     subprocess.run(list(map(str, argv)), check=True,
                    env={**(os.environ if env is None else env), 'ORCHARD_PYTHON': sys.executable})
 
@@ -372,6 +373,7 @@ def _reuse(name, target):
             raise ValueError(f'Cached component changed: {path}; remove that component and rebuild')
     os.utime(target)  # last use, which `orchard cache --prune` keeps by
     print(f'Reusing {name}: {target}', flush=True)
+    explain.reused(name, target)
     return target
 
 
@@ -387,7 +389,8 @@ def _build(cache, parent, name, key, initial_key, target, produce):
     with tempfile.TemporaryDirectory(prefix='build-', dir=parent) as temporary:
         stage = Path(temporary) / 'component'
         stage.mkdir()
-        produce(stage)
+        with explain.producing(stage):
+            produce(stage)
         if inputs is not None:
             (stage / INPUTS_RECORD).write_text(json.dumps(inputs, indent=2, sort_keys=True) + '\n')
         records = {str(p.relative_to(stage)): digest(p) for p in sorted(stage.rglob('*')) if p.is_file()}
@@ -434,6 +437,15 @@ def _prepare_kernel(hardware, cache, device, tree=None):
     platform = kernels.layout(hardware, device)[0]
     prefix = 'kernel-tree-' if tree is not None else 'kernel-'
     base_key = keyed(lambda: kernel_base_inputs(hardware, device, cache, tree))
+    described = kernels.descriptor(hardware, device)
+    if tree is None:
+        explain.note(f'kernel source: orchard\'s {platform} tree, its upstream lock plus kernel/series/{platform}, '
+                     f'prepared in its cache.\nStandalone: OrchardLinux/linux branch {described.get("branch", "main")} '
+                     f'regenerated from this orchard commit has the same content '
+                     f'(git rev-parse HEAD^{{tree}}: see kernel-base key-inputs.json "tree").')
+    else:
+        explain.note(f'kernel source: the tree {tree} as it is, with arch/{described["arch"]}/configs/'
+                     f'{described["defconfig"]}')
     def produce_base(stage):
         with kernels.tree_lock(hardware, device, tree):
             kernels.build_base(hardware, cache, device, stage / 'kernel', tree=tree)

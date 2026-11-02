@@ -43,6 +43,8 @@ def main():
                              'defconfig (default: kernel-tree in orchard.local.toml, else orchard\'s own kernel)')
         for component in ('pongo', 'busybox', 'loader'):
             command.add_argument('--' + component, type=Path, help='reuse this local component')
+    build.add_argument('--explain', action='store_true',
+                       help='print what the build ran as plain commands (always written to out/PLATFORM/commands.sh)')
     cached = commands.add_parser('cache', help='list, remove or prune shared build components; no device access')
     cached.add_argument('remove', nargs='*', metavar='COMPONENT[/KEY]',
                         help='entries to delete, e.g. kernel-j71b/0bd1204e; lists entries when omitted')
@@ -110,6 +112,9 @@ def main():
             payload_only = [name for name in ('hardware', 'cache', 'kernel_dir', 'kernel_tree',
                                               'pongo', 'busybox', 'loader') if getattr(args, name) is not None]
             if root is not None:
+                if getattr(args, 'explain', False):
+                    raise ValueError('--explain is for RAM payloads until distributions build as projects '
+                                     '(docs/platforms-and-builds.md)')
                 if payload_only:
                     raise ValueError(f'--{payload_only[0].replace("_", "-")} is for RAM payloads; '
                                      f'{root} is a distribution checkout (distro.toml)')
@@ -143,10 +148,14 @@ def main():
             platform = args.platform[0]
         if args.action == 'build':
             from orchard.ram import build_directory
-            build_directory(args.directory, hardware=args.hardware, cache=args.cache,
-                            kernel=args.kernel_dir, busybox=args.busybox, loader=args.loader,
-                            pongo=args.pongo, device=args.device, platform=platform,
-                            kernel_tree=args.kernel_tree)
+            output = build_directory(args.directory, hardware=args.hardware, cache=args.cache,
+                                     kernel=args.kernel_dir, busybox=args.busybox, loader=args.loader,
+                                     pongo=args.pongo, device=args.device, platform=platform,
+                                     kernel_tree=args.kernel_tree)
+            if args.explain:
+                print((output / 'commands.sh').read_text(), end='')
+            else:
+                print(f'What it ran, as plain commands: {output / "commands.sh"} (or orchard build --explain)')
             return
         if args.action in ('shell', 'exec', 'push', 'pull'):
             from orchard import ram_session
