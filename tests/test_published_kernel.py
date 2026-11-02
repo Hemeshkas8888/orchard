@@ -46,10 +46,12 @@ class PublishedKernel(unittest.TestCase):
         keys, bundle = keys or self.keys, bundle or self.bundle
         sums = (f'{hashlib.sha256(self.bundle).hexdigest()}  ./apple-16k-components.tar.gz\n'
                 f'{hashlib.sha256(self.keys).hexdigest()}  ./kernel-keys.json\n').encode()
-        files = {'SHA256SUMS': sums, 'kernel-keys.json': keys, 'apple-16k-components.tar.gz': bundle}
+        name = 'nightly-20261103-0123456789ab'
+        files = {'nightly/latest.json': json.dumps({'name': name}).encode(), f'{name}/SHA256SUMS': sums,
+                 f'{name}/kernel-keys.json': keys, f'{name}/apple-16k-components.tar.gz': bundle}
         def open_url(url, timeout=60):
             self.fetched.append(url.rsplit('/', 1)[1])
-            return io.BytesIO(files[url.rsplit('/', 1)[1]])
+            return io.BytesIO(files['/'.join(url.rsplit('/', 2)[1:])])
         return mock.patch.object(http, 'open_url', side_effect=open_url)
 
     def kernel(self):

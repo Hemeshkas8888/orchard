@@ -279,14 +279,37 @@ is yours to update with git. A fix for a running build means restarting it.
 
 **Done (CI):** a scheduled run (03:17 UTC) builds every published component
 of orchard main when main moved since the last nightly, or on dispatch with
-`nightly: true`, and replaces the rolling pre-release `nightly`: tag
-`nightly` moves to the built commit, the assets are the same as a release's
-(per arm64 platform a component bundle, m1n1, Pongo, tools, `SHA256SUMS`,
-attestation) plus `nightly.json` (commit, build time, run). GitHub's latest
-release, which `orchard update` and the installer read, never points at a
-pre-release. Distributions take it with `HARDWARE_TAG=nightly`. apple-armv7
-is not in it: it shares no patch layer with the arm64 platforms, so a nightly
-would only rebuild the same kernel.
+`nightly: true`. Every nightly is its own immutable pre-release,
+`nightly-YYYYMMDD-COMMIT`, with the same assets as a release (the tooling as
+`orchard-source.tar.gz`, per arm64 platform a component bundle, m1n1, Pongo,
+tools, `kernel-keys.json`, `SHA256SUMS`, attestation) plus `nightly.json`. The
+release `nightly` only points at the newest (`latest.json`); nightlies older
+than 14 days go, the newest always stays. GitHub's latest release, which
+`orchard update` and the installer read, never points at a pre-release.
+Distribution CI takes one with `HARDWARE_TAG=nightly` (resolved once through
+the pointer) or `HARDWARE_TAG=nightly-YYYYMMDD-COMMIT`. apple-armv7 is not in
+it: it shares no patch layer with the arm64 platforms, so a nightly would
+only rebuild the same kernel.
+
+**Planned: orchard as versioned tooling** (agreed November 2026, after
+Flutter's SDK and channels). The hidden mainline clone (`orchard-main`) that
+supplies the build code today goes away.
+
+- Channels: **nightly** for developers, **stable** (releases vX.Y.Z) for
+  installing. A stable distribution release pins, and for now bundles, a
+  stable orchard release; until one exists, distribution releases are
+  previews on a nightly.
+- The installed CLI is thin, like `bin/flutter`: in a project checkout
+  (`git clone omarchy-a && cd omarchy-a && orchard run`) it resolves the
+  newest nightly once at the start of the build, fetches its tooling
+  (`orchard-source.tar.gz`) and the components the build needs into the cache
+  per nightly, runs that tooling, and records the nightly in the release.
+  The project builds only its own parts; nothing of orchard is compiled. A
+  nightly published meanwhile counts from the next build on, so nothing
+  changes under a running build. Offline, the newest cached nightly, said so.
+- Pinning stays: `orchard.local.toml` names a nightly, a release or a
+  checkout of your own, and `--kernel-tree` a kernel tree; a checkout of
+  your own compiles, or takes a published kernel whose source key matches.
 
 **Planned, at the switch** (trees authoritative): a nightly is a tuple of
 commits, recorded in `nightly.json`: orchard (descriptors, device data,

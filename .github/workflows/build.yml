@@ -357,9 +357,10 @@ jobs:
           gh release create "$TAG" assets/* --draft --verify-tag \
             --title "$TAG" --notes-file notes.md
   nightly:
-    # The rolling pre-release: tag `nightly` moves to the built commit, the
-    # assets are replaced. GitHub's "latest" release (orchard update, the
-    # installer) never points at a pre-release.
+    # Every nightly is its own immutable pre-release, nightly-YYYYMMDD-<commit>;
+    # the release `nightly` only points at the newest (latest.json), and nightlies
+    # older than 14 days go, the newest always stays. GitHub's "latest" release
+    # (orchard update, the installer) never points at a pre-release.
     if: needs.changed.outputs.nightly == 'true' && github.ref == 'refs/heads/main'
     needs: [changed, assets]
     runs-on: ubuntu-24.04
@@ -373,16 +374,40 @@ jobs:
         with:
           name: orchard-release-assets
           path: assets
-      - name: Replace the nightly pre-release
+      - name: Publish the nightly and point nightly at it
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
         run: |
           (cd assets && sha256sum --check --strict SHA256SUMS)
-          date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          printf '{"schema": 1, "commit": "%s", "built": "%s", "run_id": %s}\n' "$GITHUB_SHA" "$date" "$RUN_ID" > assets/nightly.json
+          built=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          name="nightly-$(date -u +%Y%m%d)-${GITHUB_SHA::12}"
+          record=$(printf '{"schema": 1, "name": "%s", "commit": "%s", "built": "%s", "run_id": %s}' \
+            "$name" "$GITHUB_SHA" "$built" "$RUN_ID")
+          echo "$record" > assets/nightly.json
+          # A rerun of the same commit on the same day replaces that nightly.
+          gh release delete "$name" --cleanup-tag --yes 2>/dev/null || true
+          gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$name" -f sha="$GITHUB_SHA" >/dev/null
+          gh release create "$name" assets/* --prerelease --verify-tag --title "$name" \
+            --notes "orchard main ${GITHUB_SHA}, built ${built} (run ${RUN_ID}): the tooling (orchard-source.tar.gz) and every component. Untested on hardware; kept 14 days."
+          # The pointer: tag nightly at the same commit, one asset naming the newest.
+          mkdir pointer && echo "$record" > pointer/latest.json
           gh release delete nightly --cleanup-tag --yes 2>/dev/null || true
           gh api "repos/$GH_REPO/git/refs" -f ref=refs/tags/nightly -f sha="$GITHUB_SHA" >/dev/null
-          gh release create nightly assets/* --prerelease --verify-tag --title "nightly ${GITHUB_SHA::12}" \
-            --notes "Components of orchard main ${GITHUB_SHA} built ${date} (run ${RUN_ID}). Untested on hardware; replaced by every nightly. Distributions use it with HARDWARE_TAG=nightly."
+          gh release create nightly pointer/latest.json --prerelease --verify-tag --title "nightly → $name" \
+            --notes "Points at the newest nightly, $name (latest.json)."
+      - name: Remove nightlies older than 14 days
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cutoff=$(date -u -d '14 days ago' +%Y%m%d)
+          newest=$(gh release list --limit 1000 --json tagName --jq '[.[].tagName | select(test("^nightly-[0-9]{8}-[0-9a-f]{12}$"))] | sort | last')
+          gh release list --limit 1000 --json tagName --jq '.[].tagName' |
+            grep -E '^nightly-[0-9]{8}-[0-9a-f]{12}$' | while read -r tag; do
+              day=${tag#nightly-}; day=${day%%-*}
+              if [[ "$day" < "$cutoff" && "$tag" != "$newest" ]]; then
+                gh release delete "$tag" --cleanup-tag --yes
+              fi
+            done

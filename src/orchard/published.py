@@ -88,9 +88,11 @@ def kernel(hardware, cache, platform, *, tag=TAG):
     name = f'kernel-published-{platform}'
     if not (components / name / key).is_dir():
         try:
+            if tag == TAG:  # the pointer names the newest nightly
+                tag = json.loads(_fetch(f'{RELEASES}/{TAG}/latest.json', 64 * 1024))['name']
             sums = _sums(_fetch(f'{RELEASES}/{tag}/{SUMS}', 1024 * 1024).decode())
             keys_data = _fetch(f'{RELEASES}/{tag}/{KEYS}', 1024 * 1024)
-        except (OSError, ValueError) as error:
+        except (OSError, ValueError, KeyError) as error:
             print(f'No published {platform} kernel ({error}); compiling it', flush=True)
             return None
         if hashlib.sha256(keys_data).hexdigest() != sums.get(KEYS):
