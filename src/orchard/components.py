@@ -3,7 +3,9 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
+import platform
 import shutil
+import subprocess
 
 from .build import INPUTS_RECORD, cache_root, component_lock, remove_unshared, share_files
 
@@ -152,3 +154,32 @@ def prune(keep, cache=None):
                 print(f'Removed work {recipe}/{key}')
         after = _on_disk(components) + _on_disk(work)
     print(f'Freed {_human(before - after)}; {_human(after)} on disk in {root}')
+    trim_vm()
+
+
+def trim_vm():
+    """On macOS, give the Podman VM's freed space back to macOS; deletes nothing.
+
+    What is deleted inside the VM (images, layers, build volumes) stays
+    allocated in its disk file until the VM trims it. The VM also trims
+    daily (fstrim.timer); this does it now, after a cleanup.
+    """
+    if platform.system() != 'Darwin' or not shutil.which('podman'):
+        return
+    try:
+        state = subprocess.run(['podman', 'machine', 'inspect', '--format', '{{.State}}'],
+                               capture_output=True, text=True, timeout=30)
+        if state.returncode or state.stdout.strip() != 'running':
+            print('The Podman VM is not running; nothing to trim')
+            return
+        before = shutil.disk_usage(Path.home()).free
+        result = subprocess.run(['podman', 'machine', 'ssh', 'sudo', 'fstrim', '-a'],
+                                capture_output=True, text=True, timeout=600)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print(f'Could not trim the Podman VM: {error}')
+        return
+    if result.returncode:
+        print(f'Could not trim the Podman VM: {(result.stderr or result.stdout).strip()[-300:]}')
+        return
+    given = max(0, shutil.disk_usage(Path.home()).free - before)
+    print(f'Trimmed the Podman VM: {_human(given)} given back to macOS')
