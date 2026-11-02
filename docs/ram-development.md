@@ -83,6 +83,7 @@ The script uses only Python's standard library. The same bytes by hand:
 
 ```sh
 { cat m1n1.bin
+  cat logo.bin                    # optional, and only here: m1n1's custom logo
   printf 'chosen.bootargs=%s\n' 'console=tty0 loglevel=7 rdinit=/init'
   cat t8010-*.dtb                 # every DTB; m1n1 picks the one matching the device
   cat Image.gz
@@ -90,6 +91,17 @@ The script uses only Python's standard library. The same bytes by hand:
   python3 -c 'import os,struct,sys; sys.stdout.buffer.write(struct.pack("<I", os.path.getsize("initramfs.cpio.gz")))'
   cat initramfs.cpio.gz
 } > linux.bin
+```
+
+A logo is m1n1's custom logo payload: `m1n1_logo_256128`, then RGBA
+flattened on black, 256×256 and then 128×128 (`--logo`; m1n1 picks the size
+for the screen). m1n1 looks for it only directly after itself. To make one:
+
+```sh
+{ printf 'm1n1_logo_256128'
+  magick logo.png -resize 256x256 -background black -flatten -depth 8 rgba:-
+  magick logo.png -resize 128x128 -background black -flatten -depth 8 rgba:-
+} > logo.bin
 ```
 
 m1n1 reads the `chosen.bootargs` line as configuration, takes the DTB whose

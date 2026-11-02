@@ -11,8 +11,9 @@ library and runs by path, without orchard:
       --initramfs initramfs.cpio.gz --output linux.bin
 
 The same bytes by hand (docs/ram-development.md, "Assembling by hand"):
-m1n1.bin, the line "chosen.bootargs=ARGS\n", every DTB, Image.gz, then
-"m1n1_initramfs", the initramfs size as 4 bytes little-endian, the initramfs.
+m1n1.bin, the optional logo, the line "chosen.bootargs=ARGS\n", every DTB,
+Image.gz, then "m1n1_initramfs", the initramfs size as 4 bytes
+little-endian, the initramfs.
 """
 import argparse
 import hashlib
@@ -22,6 +23,11 @@ from pathlib import Path
 
 
 INITRAMFS_MAGIC = b'm1n1_initramfs'
+# m1n1's custom logo (payload.c): this magic, then RGBA flattened on black,
+# 256x256 and then 128x128. m1n1 draws it instead of its own logo, but only
+# as the first payload after m1n1 itself.
+LOGO_MAGIC = b'm1n1_logo_256128'
+LOGO_BYTES = len(LOGO_MAGIC) + 4 * (256 * 256 + 128 * 128)
 
 
 def initramfs_header(path):
@@ -41,6 +47,7 @@ def main():
     for name in ('loader', 'kernel', 'initramfs', 'output'):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--dtb', type=Path, action='append', required=True, help='repeat once per device')
+    parser.add_argument('--logo', type=Path, help='m1n1 custom logo payload (m1n1_logo_256128, RGBA 256x256 then 128x128)')
     args = parser.parse_args()
     if args.bootargs is not None:
         if '\n' in args.bootargs or '\r' in args.bootargs:
@@ -52,7 +59,14 @@ def main():
         parser.error('invalid device boot arguments')
     if args.output.exists():
         parser.error('output already exists; choose a new artifact name')
-    inputs = [('loader', args.loader), ('bootargs', bootargs), *(('dtb', dtb) for dtb in args.dtb),
+    if args.logo is not None:
+        if not args.logo.is_file():
+            parser.error(f'missing logo: {args.logo}')
+        with args.logo.open('rb') as stream:
+            if stream.read(len(LOGO_MAGIC)) != LOGO_MAGIC or args.logo.stat().st_size != LOGO_BYTES:
+                parser.error(f'{args.logo} is not an m1n1 logo payload ({LOGO_MAGIC.decode()}, {LOGO_BYTES} bytes)')
+    logo = [('logo', args.logo)] if args.logo is not None else []
+    inputs = [('loader', args.loader), *logo, ('bootargs', bootargs), *(('dtb', dtb) for dtb in args.dtb),
               ('kernel', args.kernel), ('initramfs', args.initramfs)]
     for name, source in inputs:
         if not isinstance(source, bytes) and not source.is_file():
