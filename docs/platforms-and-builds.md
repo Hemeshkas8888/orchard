@@ -282,7 +282,7 @@ of orchard main when main moved since the last nightly, or on dispatch with
 `nightly: true`. Every nightly is its own immutable pre-release,
 `nightly-YYYYMMDD-COMMIT`, with the same assets as a release (the tooling as
 `orchard-source.tar.gz`, per arm64 platform a component bundle, m1n1, Pongo,
-tools, `kernel-keys.json`, `SHA256SUMS`, attestation) plus `nightly.json`. The
+tools, `component-keys.json`, `SHA256SUMS`, attestation) plus `nightly.json`. The
 release `nightly` only points at the newest (`latest.json`); nightlies older
 than 14 days go, the newest always stays. GitHub's latest release, which
 `orchard update` and the installer read, never points at a pre-release.
@@ -304,9 +304,12 @@ supplies the build code today goes away.
   clone of its tag in `tooling/NAME`), offline the newest cached one, before
   the first nightly or with `ORCHARD_TOOLING=mainline` mainline;
   `orchard.local.toml` may pin `orchard = "nightly-…"` or `"vX.Y.Z"`. Its
-  kernels then come from that nightly (same files, same source key) and its
-  Pongo too (`git describe` finds the nightly's tag); m1n1 and the tools are
-  still built locally.
+  kernels, m1n1 and tools then come from that nightly (same files, same
+  source keys) and its Pongo too (`git describe` finds the nightly's tag).
+  The launcher itself lives in mainline: `orchard update` moves mainline to
+  the newest nightly, and a launcher older than the nightly it runs says so.
+  The user core an installer leaves (install, launch, devices) stays on
+  stable releases; the two meet in the Rust launcher.
 - The installed CLI is thin, like `bin/flutter`: in a project checkout
   (`git clone omarchy-a && cd omarchy-a && orchard run`) it resolves the
   newest nightly once at the start of the build, fetches its tooling
@@ -348,7 +351,7 @@ compiling it when the platform's *source key* matches (`orchard.published`):
 a hash of the files that decide the kernel (upstream lock, series and every
 patch, config, toolchain recipes, build fields, `KERNEL_PRODUCER`), which any
 checkout computes without a kernel tree. CI publishes the keys
-(`kernel-keys.json`, in `SHA256SUMS`); the bundle is checked against
+(`component-keys.json`, in `SHA256SUMS`); the bundle is checked against
 `SHA256SUMS` before use and cached (`kernel-published-PLATFORM`). Another
 key, no network or `ORCHARD_KERNEL=local`: it compiles as before. Builds in
 an orchard checkout (kernel work) always compile. The published kernel is

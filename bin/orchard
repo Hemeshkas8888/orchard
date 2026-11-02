@@ -75,7 +75,17 @@ mainline() {
 update() {
     case $1 in
         "$cache"/tooling/*)
-            echo "orchard runs $(basename "$1"): the newest nightly, looked up by every command; nothing to update" >&2
+            # Commands already run the newest nightly; what update moves is this
+            # launcher, which lives in mainline: to the same nightly.
+            name=$(basename "$1")
+            mainline >/dev/null
+            if ! git -C "$main" diff --quiet HEAD; then
+                echo "orchard: $main has local changes; not updating the launcher" >&2
+                exit 1
+            fi
+            git -C "$main" fetch --quiet --depth 1 origin tag "$name"
+            git -C "$main" -c advice.detachedHead=false checkout --quiet --detach "$name"
+            echo "orchard runs $name, the newest nightly; the launcher is $name's" >&2
             return ;;
     esac
     if [ "$1" != "$main" ]; then
@@ -136,6 +146,13 @@ command -v uv >/dev/null 2>&1 || {
 }
 root=$(checkout)
 export UV_PROJECT_ENVIRONMENT="$root/.venv"
+# A launcher older than the nightly it runs says so once per command.
+case $root in
+    "$cache"/tooling/*)
+        if [ "${1:-}" != update ] && ! cmp -s "$0" "$root/bin/orchard"; then
+            echo "orchard: a newer launcher is in $(basename "$root"); run orchard update" >&2
+        fi ;;
+esac
 case ${1:-} in
     checkout) printf '%s\n' "$root" ;;
     update) update "$root" ;;

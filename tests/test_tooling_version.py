@@ -28,8 +28,8 @@ class ToolingVersion(unittest.TestCase):
         (self.root / 'releases/nightly/latest.json').write_text(f'{{"schema": 1, "name": "{NAME}"}}\n')
         (self.root / 'work').mkdir()
 
-    def checkout(self, releases='releases', cwd='work', **env):
-        result = subprocess.run([str(ORCHARD), 'checkout'], cwd=self.root / cwd, capture_output=True, text=True,
+    def checkout(self, releases='releases', cwd='work', action='checkout', **env):
+        result = subprocess.run([str(ORCHARD), action], cwd=self.root / cwd, capture_output=True, text=True,
                                 env={**os.environ, 'ORCHARD_CACHE_DIR': str(self.root / 'cache'),
                                      'ORCHARD_MAINLINE_URL': f'file://{self.root}/repo',
                                      'ORCHARD_RELEASES_URL': f'file://{self.root}/{releases}', **env})
@@ -55,6 +55,16 @@ class ToolingVersion(unittest.TestCase):
         result = self.checkout()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('no orchard version v9.9.9', result.stderr)
+
+    def test_an_older_launcher_says_so_and_update_moves_it_to_the_nightly(self):
+        result = self.checkout()
+        self.assertIn(f'a newer launcher is in {NAME}', result.stderr)
+        update = self.checkout(action='update')
+        self.assertEqual(update.returncode, 0, update.stderr)
+        self.assertNotIn('newer launcher', update.stderr)
+        head = subprocess.run(['git', '-C', str(self.root / 'cache/orchard-main'), 'describe', '--tags'],
+                              capture_output=True, text=True).stdout.strip()
+        self.assertEqual(head, NAME)
 
 
 if __name__ == '__main__':

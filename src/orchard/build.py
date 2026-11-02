@@ -478,6 +478,8 @@ def has_loader_patches(hardware):
 
 # What the static tools are built from; the rest of the recovery directory is
 # recovery runtime and doesn't change them.
+# What orchard's m1n1 (the quiet one every device boots) is built from.
+M1N1_INPUTS = ['boot/m1n1', 'boot/quiet/m1n1.patch', 'src/orchard/buildenv.py']
 TOOL_INPUTS = ['boot/initramfs/recovery/' + name for name in
                ('build-tools', 'build-tools-in-container', 'Containerfile',
                 'install-toolchain', 'upstream.lock')] + ['src/orchard/buildenv.py']
@@ -582,7 +584,7 @@ def _prepare_pongo(hardware, components):
 
 def _prepare_m1n1(hardware, components, device):
     def key():
-        return recipe_key(hardware, ['boot/m1n1', 'boot/quiet/m1n1.patch', 'src/orchard/buildenv.py'])
+        return recipe_key(hardware, M1N1_INPUTS)
 
     def produce(stage):
         # One tree per patch set: a changed series starts a fresh tree instead
@@ -639,12 +641,15 @@ def prepare_shared(hardware=None, cache=None):
     and iw. A distribution's splash is data for this m1n1 (assemble.py --logo),
     not a m1n1 of its own.
     """
+    from . import published
     hardware, cache = _build_context(hardware, cache, 'apple')
     components = cache / 'components-v2'
+    # The nightly's m1n1 and tools when built from the same recipes; built here otherwise.
+    loader, tools = published.m1n1(hardware, cache), published.tools(hardware, cache)
     with component_lock(cache):
         return {'pongo': _prepare_pongo(hardware, components).resolve(),
-                'loader': _prepare_m1n1(hardware, components, 'apple').resolve(),
-                'tools': _prepare_tools(hardware, components).resolve()}
+                'loader': (loader or _prepare_m1n1(hardware, components, 'apple')).resolve(),
+                'tools': (tools or _prepare_tools(hardware, components)).resolve()}
 
 
 def prepare_loader(hardware=None, cache=None, *, device):

@@ -35,7 +35,7 @@ class PublishedKernel(unittest.TestCase):
         self.cache = Path(temporary.name)
         self.bundle = bundle()
         self.keys = json.dumps({'schema': 1, 'platforms': {'apple-16k': {
-            'key': published.source_key(ROOT, 'apple-16k'), 'bundle': 'apple-16k-components.tar.gz'}}}).encode()
+            'key': published.source_key(ROOT, 'apple-16k'), 'asset': 'apple-16k-components.tar.gz'}}}).encode()
         self.fetched = []
         environment = mock.patch.dict(os.environ)
         environment.start()
@@ -45,10 +45,10 @@ class PublishedKernel(unittest.TestCase):
     def release(self, keys=None, bundle=None):
         keys, bundle = keys or self.keys, bundle or self.bundle
         sums = (f'{hashlib.sha256(self.bundle).hexdigest()}  ./apple-16k-components.tar.gz\n'
-                f'{hashlib.sha256(self.keys).hexdigest()}  ./kernel-keys.json\n').encode()
+                f'{hashlib.sha256(self.keys).hexdigest()}  ./component-keys.json\n').encode()
         name = 'nightly-20261103-0123456789ab'
         files = {'nightly/latest.json': json.dumps({'name': name}).encode(), f'{name}/SHA256SUMS': sums,
-                 f'{name}/kernel-keys.json': keys, f'{name}/apple-16k-components.tar.gz': bundle}
+                 f'{name}/component-keys.json': keys, f'{name}/apple-16k-components.tar.gz': bundle}
         def open_url(url, timeout=60):
             self.fetched.append(url.rsplit('/', 1)[1])
             return io.BytesIO(files['/'.join(url.rsplit('/', 2)[1:])])
@@ -69,7 +69,7 @@ class PublishedKernel(unittest.TestCase):
 
     def test_another_kernel_state_compiles(self):
         other = json.dumps({'schema': 1, 'platforms': {'apple-16k': {
-            'key': '0' * 64, 'bundle': 'apple-16k-components.tar.gz'}}}).encode()
+            'key': '0' * 64, 'asset': 'apple-16k-components.tar.gz'}}}).encode()
         self.keys = other
         with self.release():
             self.assertIsNone(self.kernel())
@@ -101,3 +101,53 @@ class PublishedKernel(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PublishedShared(unittest.TestCase):
+    """m1n1 and the static tools come from the nightly the same way."""
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.cache = Path(temporary.name)
+        environment = mock.patch.dict(os.environ)
+        environment.start()
+        self.addCleanup(environment.stop)
+        os.environ.pop('ORCHARD_PUBLISHED', None)
+        data = io.BytesIO()
+        with tarfile.open(fileobj=data, mode='w:gz') as tar:
+            for name in published.TOOLS + ('../escape',):
+                if name.startswith('..'):
+                    continue
+                info = tarfile.TarInfo(f'components/boot/{name}')
+                info.size, info.mode = 4, 0o755
+                tar.addfile(info, io.BytesIO(b'tool'))
+        self.tools, self.m1n1 = data.getvalue(), b'm1n1 binary'
+        shared = published.shared_keys(ROOT)
+        self.keys = json.dumps({'schema': 1, 'platforms': {}, 'shared': {
+            'm1n1': {'key': shared['m1n1'], 'asset': 'm1n1.bin'},
+            'tools': {'key': shared['tools'], 'asset': 'tool-components.tar.gz'}}}).encode()
+
+    def release(self):
+        name = 'nightly-20261103-0123456789ab'
+        sums = ''.join(f'{hashlib.sha256(data).hexdigest()}  ./{file}\n' for file, data in
+                       (('m1n1.bin', self.m1n1), ('tool-components.tar.gz', self.tools),
+                        ('component-keys.json', self.keys))).encode()
+        files = {'nightly/latest.json': json.dumps({'name': name}).encode(), f'{name}/SHA256SUMS': sums,
+                 f'{name}/component-keys.json': self.keys, f'{name}/m1n1.bin': self.m1n1,
+                 f'{name}/tool-components.tar.gz': self.tools}
+        return mock.patch.object(http, 'open_url',
+                                 side_effect=lambda url, timeout=60: io.BytesIO(files['/'.join(url.rsplit('/', 2)[1:])]))
+
+    def test_m1n1_and_tools_from_the_nightly(self):
+        with self.release(), contextlib.redirect_stdout(io.StringIO()):
+            loader = published.m1n1(ROOT, self.cache)
+            tools = published.tools(ROOT, self.cache)
+        self.assertEqual(loader.read_bytes(), b'm1n1 binary')
+        for name in published.TOOLS:
+            self.assertTrue(os.access(tools / name, os.X_OK), name)
+
+    def test_off_builds_them(self):
+        os.environ['ORCHARD_PUBLISHED'] = 'off'
+        with self.release():
+            self.assertIsNone(published.m1n1(ROOT, self.cache))
+            self.assertIsNone(published.tools(ROOT, self.cache))
