@@ -58,7 +58,13 @@ queue on top of upstream, not a fork:
 - the delta is exportable as a plain series at any time.
 
 Configs live in the tree as defconfigs (`arch/<arch>/configs/`); orchard only
-names them. Until the switch, `kernel/configs` is authoritative.
+names them. Until the switch, `kernel/configs` is authoritative: regenerate
+makes the tree's defconfigs from it and checks they reproduce it byte for
+byte. **Planned:** what differs from the source of truth is refused, never
+corrected silently. `export.py` carries a branch's defconfig change into
+`kernel/configs/<platform>/config` (`make olddefconfig`), so it reaches orchard
+the way any change does; regenerate refuses to move a branch whose
+defconfig holds a change orchard does not have, and says to export it.
 
 ## Imported work (done)
 
@@ -92,6 +98,15 @@ projects like any other (below).
 
 ## Projects, producers and boot (planned)
 
+**Principles.** orchard is a tooling layer, not a distribution framework: it
+provides producers, platform data and a CLI that makes using them easy;
+projects compose them. Every fact and every step exists in one place; where
+a second copy exists for a while (`kernel/configs` and the tree's
+defconfigs), a check guards it and the source of truth wins, everything else
+is refused. Doing by hand what the CLI does is slower, never broken:
+producers check their own inputs and fail loudly, and no step depends on
+state only the CLI has.
+
 Agreed November 2026. It replaces the separate paths for RAM payloads
 (`payload.toml`) and distributions (`distro.toml`): today a distribution's
 build entry calls orchard's internals itself (`platform.kernel()`,
@@ -117,12 +132,20 @@ platform, the m1n1) reaches it without its own wiring.
    launcher. The commands for each are documented.
 
 So a user can build a project's root, take or build the platform's
-components, assemble and boot without orchard. The orchard CLI does what is
-tedious by hand: it resolves platform and device, reuses the cache, takes
-the kernel from a published build, a local build or `--kernel-tree`, runs
-the producers and the assembly, and boots. `--explain` prints the plain
-commands it would run, so the standalone path is documented by the tool and
-cannot drift from it.
+components, assemble and boot without orchard.
+
+**Composition stays with the project.** A distribution's release (root,
+per-platform recovery and platform layer, manifest, installer package) is
+assembled by the distribution's own script, which calls orchard's producers
+by path or takes their published outputs, and imports none of orchard's
+Python. The orchard CLI does not compose a second time: it resolves the
+inputs (platform and device; the kernel from a published build, a local
+build or `--kernel-tree`; the shared components), hands them to that script
+as files and arguments, caches, and boots. `--explain` records what ran
+(**done** for RAM payloads: `out/PLATFORM/commands.sh`), so the standalone
+path is documented by the tool and cannot drift from it. The two
+distributions' scripts stay short because the producers do the work;
+contract tests in orchard check how they call them.
 
 ### Two stages: initramfs and root
 
@@ -189,10 +212,12 @@ installer = true
   orchard's artifact. A distribution build takes it finished for its orchard
   revision and compiles it locally only on request (`--kernel-tree`).
 - A local test build covers one platform; releases cover all.
-- One m1n1, orchard's. A distribution supplies its splash as data: an
-  installed boot already reads it per entry from the boot partition; a RAM
-  boot gets it over the m1n1 proxy from the launcher (to verify: earlier
-  attempts at injecting it failed). Distribution m1n1 builds go away.
+- **Done:** one m1n1, orchard's. A distribution supplies its artwork as
+  data: the boot splash, which m1n1 paints per entry for an installed boot,
+  and m1n1's custom logo payload (`m1n1_logo_256128`, at most 256 px), which
+  the recovery's assembly puts directly after m1n1 (`assemble.py --logo`) and
+  the quiet m1n1 draws on black. minimal-linux and omarchy-a build no m1n1
+  any more (J71b, November 2026).
 - The A5 (`cascadia` loader) packs stage 1 into the zImage because iBEC
   passes no initrd. As its launcher is rebuilt from first principles, the
   aim is that it differs from arm64 only in having no m1n1; how far that
@@ -208,10 +233,13 @@ installer = true
 
 ### Order
 
-1. Assembly as a standalone script.
-2. `--explain`.
-3. minimal-linux as an `orchard.toml` project.
-4. omarchy-a.
+1. **Done:** assembly as a standalone script (`assemble.py`, by hand in
+   docs/ram-development.md), `--explain` for RAM payloads, one m1n1.
+2. Published components (nightlies), so a distribution build needs neither a
+   kernel compile nor the CLI.
+3. The orchard internals the distributions import become producers with file
+   contracts (`platform.kernel()`, `prepare_shared()`, `orchard.image.*`),
+   and the distributions call those; then `orchard.toml`.
 
 ## Build environment (planned)
 
