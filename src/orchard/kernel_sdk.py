@@ -9,7 +9,7 @@ import shutil
 
 
 REQUIRED = ('.config', 'Makefile', 'Module.symvers', 'modules.builtin',
-            'modules.builtin.modinfo', 'include/config/kernel.release',
+            'modules.builtin.modinfo', 'modules.order', 'include/config/kernel.release',
             'include/config/auto.conf', 'include/generated/autoconf.h',
             'include/generated/utsrelease.h', 'scripts/basic/fixdep', 'scripts/mod/modpost')
 def directories(arch='arm64'):
