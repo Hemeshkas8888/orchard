@@ -84,5 +84,6 @@
       "publish": false,
       "note": "Supply the owner's calibration explicitly. The upstream reference calibration is excluded; keep calibration bytes and hashes out of public recipes and releases."
     }
-  ]
+  ],
+  "outputs": []
 }
