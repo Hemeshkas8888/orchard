@@ -1,6 +1,7 @@
 """What a distribution build gets from orchard, as one JSON file: the distribution contract's entry.
 
   python -m orchard.inputs --output inputs.json [--platform NAME ...] [--kernel-dir PLATFORM=DIR ...]
+                           [--m1n1 FILE] [--pongo FILE] [--tools DIR]
 
 A distribution's build runs orchard's producers as commands from an orchard
 snapshot (a checkout, the newest nightly's tooling, or a release's
@@ -14,6 +15,9 @@ build. The other producers of the contract (docs/distribution-contract.md)
 take these paths as arguments.
 
 Without --platform: every platform a distribution root serves (arm64).
+Components given explicitly (--kernel-dir, --m1n1, --pongo, --tools, e.g.
+from a release's component bundles in CI) are used as they are: with all of
+them given, nothing is fetched or built.
 """
 import argparse
 import json
@@ -23,8 +27,14 @@ import sys
 SCHEMA = 1
 
 
-def resolve(platforms=None, explicit=None, *, hardware=None, cache=None):
-    """The inputs document for PLATFORMS (default: every arm64 platform)."""
+TOOLS = ('busybox', 'dropbear', 'dropbearkey', 'wpa_supplicant', 'wpa_cli', 'iw')
+
+
+def resolve(platforms=None, explicit=None, *, hardware=None, cache=None, shared=None):
+    """The inputs document for PLATFORMS (default: every arm64 platform).
+
+    SHARED: {'m1n1', 'pongo', 'tools'} given explicitly; the rest is resolved.
+    """
     from .build import prepare_shared
     from .hardware import ROOT, revision
     from .image import platform
@@ -35,8 +45,14 @@ def resolve(platforms=None, explicit=None, *, hardware=None, cache=None):
     unknown = sorted(set(selected) - set(known)) + sorted(set(explicit) - set(selected))
     if unknown:
         raise ValueError(f'Unknown or unselected platform {", ".join(unknown)}; known: {", ".join(known)}')
-    shared = prepare_shared(hardware, cache)
-    tools = Path(shared['tools'])
+    given = {key: Path(value) for key, value in (shared or {}).items() if value is not None}
+    found = {} if len(given) == 3 else prepare_shared(hardware, cache)
+    m1n1 = given.get('m1n1') or found['loader']
+    pongo = given.get('pongo') or found['pongo']
+    tools = given.get('tools') or Path(found['tools'])
+    for path in (m1n1, pongo, *(tools / name for name in TOOLS)):
+        if not Path(path).is_file():
+            raise ValueError(f'Missing component {path}')
     try:
         orchard = revision()
     except ValueError:
@@ -48,9 +64,8 @@ def resolve(platforms=None, explicit=None, *, hardware=None, cache=None):
                                                                                          cache=cache)).resolve()),
                              'boards': platform.boards(name, hardware)}
                       for name in selected},
-        'shared': {'m1n1': str(shared['loader']), 'pongo': str(shared['pongo']),
-                   'tools': {name: str(tools / name) for name in
-                             ('busybox', 'dropbear', 'dropbearkey', 'wpa_supplicant', 'wpa_cli', 'iw')}},
+        'shared': {'m1n1': str(Path(m1n1).resolve()), 'pongo': str(Path(pongo).resolve()),
+                   'tools': {name: str((tools / name).resolve()) for name in TOOLS}},
     }
 
 
@@ -60,6 +75,9 @@ def main():
     parser.add_argument('--platform', action='append', help='a platform to build for; repeat (default: every one)')
     parser.add_argument('--kernel-dir', action='append', default=[], metavar='PLATFORM=DIRECTORY',
                         help="a platform's staged kernel bundle instead of orchard's")
+    parser.add_argument('--m1n1', type=Path, help="orchard's m1n1 to use as it is")
+    parser.add_argument('--pongo', type=Path, help='the Pongo to use as it is')
+    parser.add_argument('--tools', type=Path, help='a directory with the static tools to use as they are')
     args = parser.parse_args()
     explicit = {}
     for value in args.kernel_dir:
@@ -68,7 +86,8 @@ def main():
             parser.error('--kernel-dir takes PLATFORM=DIRECTORY')
         explicit[name] = Path(path)
     try:
-        document = resolve(args.platform, explicit)
+        document = resolve(args.platform, explicit, shared={'m1n1': args.m1n1, 'pongo': args.pongo,
+                                                            'tools': args.tools})
     except ValueError as error:
         sys.exit(str(error))
     args.output.parent.mkdir(parents=True, exist_ok=True)

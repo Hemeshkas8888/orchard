@@ -21,7 +21,7 @@ without orchard takes it as an argument.
 
 | Command | Does | Files |
 |---|---|---|
-| `orchard.inputs --output FILE [--platform P …] [--kernel-dir P=DIR …]` | resolves what the build takes finished | `FILE`: per platform its kernel bundle and boards (board → DTB), the shared m1n1, Pongo and static tools, orchard's revision; paths into orchard's cache |
+| `orchard.inputs --output FILE [--platform P …] [--kernel-dir P=DIR …] [--m1n1 FILE] [--pongo FILE] [--tools DIR]` | resolves what the build takes finished | `FILE`: per platform its kernel bundle and boards (board → DTB), the shared m1n1, Pongo and static tools, orchard's revision; paths into orchard's cache |
 | `orchard.image.platform P --output DIR --kernel-dir BUNDLE --busybox FILE [--receipt FILE]` | the platform layer of installed systems | `DIR/platform-P.tar.gz`, its receipt |
 | `orchard.image.recovery --dtb FILE … --loader FILE [--logo FILE] --kernel FILE --modules-dir DIR --busybox --dropbear --dropbearkey --wpa-supplicant --wpa-cli --iw FILE --base FILE --base-receipt FILE --root-receipt FILE --output FILE [--verbose]` | a platform's RAM recovery | the image and `IMAGE.json` |
 | `orchard.installer release DIR [--installer-url URL] [--pongo FILE] [--m1n1 FILE]` | the installer of a release | `DIR/install.sh`, `DIR/orchard-install.pyz` |
