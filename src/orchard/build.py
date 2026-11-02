@@ -520,6 +520,8 @@ def prepare_tools(hardware=None, cache=None, *, device):
 
 
 RELEASES = 'https://github.com/OrchardLinux/orchard/releases/download'
+# What Pongo is built from; boot/quiet/m1n1.patch is m1n1's, not Pongo's.
+PONGO_RECIPE = ['boot/quiet/build-pongo.py', 'boot/quiet/pongo.patch']
 
 
 def released_pongo(hardware):
@@ -534,7 +536,7 @@ def released_pongo(hardware):
     if described.returncode:
         return None
     tag = described.stdout.strip()
-    if git('diff', '--quiet', tag, '--', 'boot/quiet').returncode:
+    if git('diff', '--quiet', tag, '--', *PONGO_RECIPE).returncode:
         return None
     from .http import open_url
     for sums in ('SHA256SUMS', 'launcher.SHA256SUMS'):  # releases before 0.2 list it with the launcher
@@ -566,16 +568,16 @@ def _prepare_pongo(hardware, components):
 
     def produce(stage):
         if sys.platform != 'darwin' or not shutil.which('xcrun'):
-            raise ValueError('Pongo\'s recipe (boot/quiet) differs from the latest release, and building it '
+            raise ValueError('Pongo\'s recipe (boot/quiet/build-pongo.py, pongo.patch) differs from the latest release, and building it '
                              'needs macOS with Xcode and the iPhoneOS SDK. Pass --pongo FILE to use another, '
                              'or build on a Mac.')
-        work = recipe_work(components, 'pongo', recipe_key(hardware, ['boot/quiet']))
+        work = recipe_work(components, 'pongo', recipe_key(hardware, PONGO_RECIPE))
         argv = [sys.executable, hardware / 'boot/quiet/build-pongo.py',
                 '--work-dir', work, '--output', stage / 'pongo.bin']
         if (work / 'source').exists():
             argv.append('--resume')
         command(*argv)
-    return cached_component(components, 'pongo', lambda: recipe_key(hardware, ['boot/quiet']), produce) / 'pongo.bin'
+    return cached_component(components, 'pongo', lambda: recipe_key(hardware, PONGO_RECIPE), produce) / 'pongo.bin'
 
 
 def _prepare_m1n1(hardware, components, device):
