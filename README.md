@@ -98,6 +98,7 @@ A distribution checkout has a `distro.toml` naming its build entry. There
 - [J71b compatibility audit and validation limits](docs/j71b-compatibility-audit.md)
 - [GitHub builds](docs/ci.md)
 - [Tooling design](docs/tooling.md)
+- [Platforms, kernel trees, builds and boot](docs/platforms-and-builds.md)
 - [Contributing](CONTRIBUTING.md)
 
 The repository contains recipes and code, not private Apple firmware, calibration,
