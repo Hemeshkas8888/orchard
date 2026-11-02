@@ -306,8 +306,18 @@ main, the Pongo pin.
   2026): at tag time orchard writes the commit tuple into a lock, as
   `upstream.lock` pins the base today, so a release rebuilds exactly. A
   kernel change needs no second commit in orchard to reach the nightly.
-- **Planned before that:** a local build uses the nightly's kernel when its
-  cache key equals the local one, instead of compiling.
+
+**Done:** a distribution build takes the nightly's kernel instead of
+compiling it when the platform's *source key* matches (`orchard.published`):
+a hash of the files that decide the kernel (upstream lock, series and every
+patch, config, toolchain recipes, build fields, `KERNEL_PRODUCER`), which any
+checkout computes without a kernel tree. CI publishes the keys
+(`kernel-keys.json`, in `SHA256SUMS`); the bundle is checked against
+`SHA256SUMS` before use and cached (`kernel-published-PLATFORM`). Another
+key, no network or `ORCHARD_KERNEL=local`: it compiles as before. Builds in
+an orchard checkout (kernel work) always compile. The published kernel is
+CI's build of that kernel state; CI installs the toolchain natively, so it
+is not claimed to be byte-identical to a local compile.
 
 ## Build caching (planned, last)
 

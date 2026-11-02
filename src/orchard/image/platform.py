@@ -59,8 +59,15 @@ def platforms(hardware=None):
 
 
 def kernel(platform, *, hardware=None, cache=None):
-    """The staged kernel bundle of PLATFORM, built or reused from the cache."""
-    from ..build import prepare_kernel
+    """The staged kernel bundle of PLATFORM: the nightly's when it was built from
+    this checkout's kernel state (orchard.published), else built or reused from
+    the cache. ORCHARD_KERNEL=local always compiles."""
+    from ..build import cache_root, prepare_kernel
+    from ..hardware import ROOT
+    from .. import published
+    found = published.kernel(Path(hardware or ROOT), Path(cache) if cache else cache_root(), platform)
+    if found is not None:
+        return found
     return prepare_kernel(hardware, cache, device=sorted(boards(platform, hardware))[0])
 
 

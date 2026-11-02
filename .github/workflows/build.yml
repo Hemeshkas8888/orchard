@@ -302,8 +302,11 @@ jobs:
           python -m orchard.installer core out/publication/orchard-core.pyz \
             --pongo out/components/quiet/pongo.bin --m1n1 out/components/quiet/m1n1.bin
           rm out/publication/kernel-components-*.tar.gz out/publication/tool-components.tar.gz out/publication/quiet-pongo.tar.gz
+          # Each platform's kernel source key: a distribution build with the same
+          # kernel state uses that bundle's kernel instead of compiling (orchard.published).
+          python -m orchard.published keys --output out/publication/kernel-keys.json apple-16k apple-4k
           git archive --format=tar.gz -o out/publication/orchard-source.tar.gz HEAD
-          (cd out/publication && sha256sum ./*.tar.gz ./*.bin ./*.pyz > SHA256SUMS)
+          (cd out/publication && sha256sum ./*.tar.gz ./*.bin ./*.pyz ./kernel-keys.json > SHA256SUMS)
       - name: Attest public build
         if: toJSON(github.event.repository.private) == 'false'
         id: attest
