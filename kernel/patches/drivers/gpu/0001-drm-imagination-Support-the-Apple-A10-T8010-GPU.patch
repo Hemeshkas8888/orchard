@@ -43,11 +43,11 @@ Assisted-by: LLM
 ---
  drivers/gpu/drm/imagination/Kconfig           |   12 +
  drivers/gpu/drm/imagination/Makefile          |    5 +
- drivers/gpu/drm/imagination/pvr_apple.c       | 1515 +++++++++++++++++
+ drivers/gpu/drm/imagination/pvr_apple.c       | 1581 +++++++++++++++++
  drivers/gpu/drm/imagination/pvr_apple.h       |  137 ++
- .../gpu/drm/imagination/pvr_apple_layout.c    |  722 ++++++++
- .../gpu/drm/imagination/pvr_apple_layout.h    |   62 +
- drivers/gpu/drm/imagination/pvr_apple_queue.c |  142 ++
+ .../gpu/drm/imagination/pvr_apple_layout.c    |  746 ++++++++
+ .../gpu/drm/imagination/pvr_apple_layout.h    |   65 +
+ drivers/gpu/drm/imagination/pvr_apple_queue.c |  149 ++
  drivers/gpu/drm/imagination/pvr_context.c     |   66 +-
  drivers/gpu/drm/imagination/pvr_context.h     |    9 +
  drivers/gpu/drm/imagination/pvr_device.c      |   60 +-
@@ -62,11 +62,11 @@ Assisted-by: LLM
  drivers/gpu/drm/imagination/pvr_queue.c       |   17 +
  .../drm/imagination/pvr_rogue_fwif_stream.h   |   21 +
  drivers/gpu/drm/imagination/pvr_stream.c      |   10 +-
- drivers/gpu/drm/imagination/pvr_stream_defs.c |   98 ++
+ drivers/gpu/drm/imagination/pvr_stream_defs.c |   98 +
  drivers/gpu/drm/imagination/pvr_stream_defs.h |    2 +
  drivers/gpu/drm/imagination/pvr_vm.c          |  106 +-
  drivers/gpu/drm/imagination/pvr_vm.h          |    2 +
- 25 files changed, 3107 insertions(+), 64 deletions(-)
+ 25 files changed, 3207 insertions(+), 64 deletions(-)
  create mode 100644 drivers/gpu/drm/imagination/pvr_apple.c
  create mode 100644 drivers/gpu/drm/imagination/pvr_apple.h
  create mode 100644 drivers/gpu/drm/imagination/pvr_apple_layout.c
@@ -114,10 +114,10 @@ index a5c5e38..de8d1b1 100644
  
 diff --git a/drivers/gpu/drm/imagination/pvr_apple.c b/drivers/gpu/drm/imagination/pvr_apple.c
 new file mode 100644
-index 0000000..69e1025
+index 0000000..857547b
 --- /dev/null
 +++ b/drivers/gpu/drm/imagination/pvr_apple.c
-@@ -0,0 +1,1515 @@
+@@ -0,0 +1,1581 @@
 +// SPDX-License-Identifier: GPL-2.0-only OR MIT
 +/*
 + * Apple A10 (T8010) support: Rogue fixed-function hardware driven by Apple's
@@ -219,6 +219,11 @@ index 0000000..69e1025
 +	u32 ta_seq;			/* last submitted geometry job */
 +	u32 frag_seq;			/* last submitted fragment job */
 +	u32 frag_events;		/* fragment-done events the firmware posted */
++	/*
++	 * A geometry job reached the firmware since the last fragment job (or
++	 * its start): only then does the next Start3D find a free list
++	 */
++	bool geom_pending;
 +	spinlock_t event_lock;		/* event ring consumer, frag_events */
 +	dma_addr_t vm_root;		/* page-table root GPU context 0 runs on */
 +
@@ -293,6 +298,18 @@ index 0000000..69e1025
 +static unsigned int pvr_apple_poll_us = 100;
 +module_param_named(apple_poll_us, pvr_apple_poll_us, uint, 0644);
 +MODULE_PARM_DESC(apple_poll_us, "Apple A10: microseconds between job completion checks (default 100)");
++
++/*
++ * The firmware's debug flags: 1 SKU trace events, 2 cancel-path events, into
++ * a debug ring of 511 records that nothing drains. Once it is full the
++ * firmware stops the GPU's work and asks the host to drain it (messages of
++ * type 2 on the init endpoint, iOS 10's receivedMessageFromAKF()): only for
++ * short experiments. Read at each firmware start, so a change applies from
++ * the next reset; a hang report then ends with the ring's last records.
++ */
++static unsigned int pvr_apple_fw_debug;
++module_param_named(apple_fw_debug, pvr_apple_fw_debug, uint, 0644);
++MODULE_PARM_DESC(apple_fw_debug, "Apple A10: GFX firmware debug flags (1 trace events, 2 cancel events; default 0)");
 +
 +static unsigned int pvr_apple_perf_state;
 +module_param_named(apple_perf_state, pvr_apple_perf_state, uint, 0444);
@@ -920,6 +937,16 @@ index 0000000..69e1025
 +		/* type 1, 4: a fragment job finished (1, 2: a geometry job) */
 +		if (e[0] == 1 && e[1] == 4)
 +			apple->frag_events++;
++		/*
++		 * Others are not handled yet; iOS 10's AGXFirmware::
++		 * drainFirmwareEventRing() answers type 8 (channel, value) with a
++		 * device-control command {10, 2, value}, and type 4 can request a
++		 * restart. Log them, so a job that waits on one is visible.
++		 */
++		else if (e[0] != 1)
++			dev_warn_ratelimited(apple_dev(apple),
++					     "firmware event %u: %08x %08x %08x %08x %08x %08x %08x %08x %08x\n",
++					     cons, e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8]);
 +	}
 +	WRITE_ONCE(*(__le32 *)(apple->heap + pvr_apple_layout_event_consumer()),
 +		   cpu_to_le32(prod));
@@ -1017,6 +1044,15 @@ index 0000000..69e1025
 +		heap_read32(apple, pvr_apple_layout_3d_producer()),
 +		heap_read32(apple, pvr_apple_layout_event_producer()),
 +		heap_read32(apple, pvr_apple_layout_event_consumer()));
++	if (heap_read32(apple, pvr_apple_layout_debug_flags_offset())) {
++		u32 next = heap_read32(apple, pvr_apple_layout_sku_index());
++		unsigned int i;
++
++		dev_err(apple_dev(apple), "hang: trace ring index %u\n", next);
++		for (i = next >= 24 ? next - 24 : 0; i < next; i++)
++			dev_err(apple_dev(apple), "hang: trace %u: %*ph\n", i, 36,
++				apple->heap + pvr_apple_layout_sku_record(i));
++	}
 +}
 +
 +static void pvr_apple_cancel_fences(struct pvr_apple *apple, int error)
@@ -1207,7 +1243,8 @@ index 0000000..69e1025
 +}
 +
 +static int pvr_apple_queue_render(struct pvr_apple *apple, struct pvr_vm_context *vm_ctx,
-+				  enum pvr_apple_engine engine, const void *job)
++				  enum pvr_apple_engine engine, const void *job,
++				  struct pvr_free_list *fl)
 +{
 +	u32 seq, producer;
 +	int err;
@@ -1260,7 +1297,21 @@ index 0000000..69e1025
 +	}
 +	if (err)
 +		goto out_unlock;
++	/*
++	 * A fragment job without its geometry job crashes the firmware: its
++	 * Start3D loads a null free-list entry (fw 0x1703c -> 0x16634). That
++	 * happens when the geometry job failed, as after a reset, whose
++	 * cancelled geometry fences still release the fragment jobs waiting
++	 * on them. End such a job instead.
++	 */
++	if (engine == APPLE_ENGINE_FRAG && !apple->geom_pending) {
++		dev_warn_ratelimited(apple_dev(apple),
++				     "fragment job without a geometry job: not run\n");
++		err = -ECANCELED;
++		goto out_unlock;
++	}
 +	pvr_apple_switch_vm(apple, vm_ctx);
++	apple->geom_pending = engine == APPLE_ENGINE_GEOM;
 +	if (engine == APPLE_ENGINE_GEOM) {
 +		seq = ++apple->ta_seq;
 +		pvr_apple_layout_write_ta_job(apple->heap, seq, job);
@@ -1351,11 +1402,15 @@ index 0000000..69e1025
 +	frag->regs64[2] = regs->isp_dbias_base;				/* 0xfb8 */
 +	frag->regs64[3] = regs->isp_oclqry_base;			/* 0xfc0, pipe 0 */
 +	frag->regs64[4] = regs->isp_oclqry_base;			/* 0xfc0, pipe 1 */
++	/*
++	 * Depth load and store bases, then stencil's (measured: the depth
++	 * store reaches memory only with the base in 0xf58)
++	 */
 +	frag->regs64[5] = regs->isp_zlsctl;				/* 0xf48 */
-+	frag->regs64[6] = regs->isp_zload_store_base;			/* 0xf50 load */
-+	frag->regs64[7] = regs->isp_stencil_load_store_base;		/* 0xf58 load */
-+	frag->regs64[8] = regs->isp_zload_store_base;			/* 0xf60 store */
-+	frag->regs64[9] = regs->isp_stencil_load_store_base;		/* 0xf68 store */
++	frag->regs64[6] = regs->isp_zload_store_base;			/* 0xf50 Z load */
++	frag->regs64[7] = regs->isp_zload_store_base;			/* 0xf58 Z store */
++	frag->regs64[8] = regs->isp_stencil_load_store_base;		/* 0xf60 S load */
++	frag->regs64[9] = regs->isp_stencil_load_store_base;		/* 0xf68 S store */
 +	frag->regs64[10] = apple->isp_rgn;				/* 0xf28 */
 +	memcpy(&frag->regs64[11], apple->pds_bgnd, sizeof(apple->pds_bgnd));
 +	frag->regs64[15] = regs->isp_aa;				/* 0xf30 */
@@ -1399,7 +1454,9 @@ index 0000000..69e1025
 +		engine = APPLE_ENGINE_FRAG;
 +		pvr_apple_frag_job_init(&hw->frag, job->cmd, job->hwrt);
 +	}
-+	seq = pvr_apple_queue_render(apple, job->ctx->vm_ctx, engine, hw);
++	seq = pvr_apple_queue_render(apple, job->ctx->vm_ctx, engine, hw,
++				     engine == APPLE_ENGINE_GEOM ?
++					     job->hwrt->hwrt_dataset->free_lists[0] : NULL);
 +	kfree(hw);
 +	return pvr_apple_job_fence(apple, fence, engine, seq);
 +}
@@ -1497,11 +1554,14 @@ index 0000000..69e1025
 +	apple->ta_seq = 0;
 +	apple->frag_seq = 0;
 +	apple->frag_events = 0;
++	apple->geom_pending = false;
 +	pvr_apple_layout_build(apple->win, apple->win_dma, apple->heap, apple->heap_dma,
 +			       apple->vm_root, APPLE_GPU_PDS, APPLE_GPU_USC);
 +	/* Geometry and fragment queues (work rings 0 and 1) */
 +	pvr_apple_layout_build_ta(apple->heap);
 +	pvr_apple_layout_build_3d(apple->heap);
++	*(__le32 *)(apple->heap + pvr_apple_layout_debug_flags_offset()) =
++		cpu_to_le32(pvr_apple_fw_debug);
 +	wmb();
 +
 +	err = apple_rtkit_send_message(apple->rtk, APPLE_EP_AGX_INIT,
@@ -1566,9 +1626,15 @@ index 0000000..69e1025
 +	spin_unlock_irq(&apple->fence_lock);
 +
 +	if (apple->booted) {
-+		/* a wedged firmware may not answer either: go on regardless */
++		/*
++		 * A wedged or crashed firmware may not answer: go on regardless.
++		 * apple_rtkit_shutdown() resets RTKit's state only once the
++		 * firmware acknowledged; after a crash it stays "crashed" and
++		 * refuses to boot, so reset it here.
++		 */
 +		pvr_apple_request_power_state(apple, 0);
-+		apple_rtkit_shutdown(apple->rtk);
++		if (apple_rtkit_shutdown(apple->rtk))
++			apple_rtkit_reinit(apple->rtk);
 +		writel(readl(apple->fender + FENDER_RUN) & ~FENDER_RUN_ENABLE,
 +		       apple->fender + FENDER_RUN);
 +		apple->booted = false;
@@ -1778,10 +1844,10 @@ index 0000000..13b1970
 +#endif /* PVR_APPLE_H */
 diff --git a/drivers/gpu/drm/imagination/pvr_apple_layout.c b/drivers/gpu/drm/imagination/pvr_apple_layout.c
 new file mode 100644
-index 0000000..6a78b6e
+index 0000000..e55f6b2
 --- /dev/null
 +++ b/drivers/gpu/drm/imagination/pvr_apple_layout.c
-@@ -0,0 +1,722 @@
+@@ -0,0 +1,746 @@
 +// SPDX-License-Identifier: GPL-2.0-only OR MIT
 +/*
 + * Apple A10 (T8010) GPU firmware memory layout.
@@ -1859,6 +1925,8 @@ index 0000000..6a78b6e
 +#define HEAP_EVENT_RING		0x57000u	/* control page, then 256 x 0x24-byte events */
 +#define HEAP_CDM_ARGS		0x5b000u	/* fw VA 0x14b000 */
 +#define HEAP_CDM_REGS		0x5c000u	/* fw VA 0x14c000 */
++#define HEAP_SKU_RECORDS	0x70000u	/* 512 x 36-byte trace records (debug flags) */
++#define HEAP_SKU_CONTROL	0x75000u	/* +0x20: index of the next record */
 +#define HEAP_PDS_PD		0x80000u
 +#define HEAP_3D_CMD		0x76000u	/* fragment command, 0x908 bytes */
 +#define HEAP_3D_USEQ		0x77000u	/* microsequence, 0xc8 bytes */
@@ -1976,8 +2044,8 @@ index 0000000..6a78b6e
 +	wr32(heap, HEAP_X + 0xd8, fw_va(0x27000));	/* control ring data */
 +	wr32(heap, HEAP_X + 0xdc, fw_va(HEAP_EVENT_RING));	/* event ring control */
 +	wr32(heap, HEAP_X + 0xe0, fw_va(HEAP_EVENT_RING + 0x1000));	/* event ring entries */
-+	wr32(heap, HEAP_X + 0xec, fw_va(0x75000));	/* SKU trace control */
-+	wr32(heap, HEAP_X + 0xf0, fw_va(0x70000));	/* SKU trace records */
++	wr32(heap, HEAP_X + 0xec, fw_va(HEAP_SKU_CONTROL));	/* SKU trace control */
++	wr32(heap, HEAP_X + 0xf0, fw_va(HEAP_SKU_RECORDS));	/* SKU trace records */
 +	wr32(heap, HEAP_X + 0xf4, fw_va(0x68000));	/* firmware trace control */
 +	wr32(heap, HEAP_X + 0xf8, fw_va(0x64000));	/* firmware trace records */
 +
@@ -2136,7 +2204,13 @@ index 0000000..6a78b6e
 +	build_compute_queue(heap);
 +	build_compute_command(heap);
 +
-+	wr32(heap, HEAP_U + 0x0, 3);			/* debug flags */
++	/*
++	 * Debug flags (fw global 0x3004c): bit 0 enables the SKU trace events,
++	 * bit 1 the cancel-path ones, both into the SKU ring (X+0xec/+0xf0),
++	 * which nothing drains. Off: pvr_apple_fw_start() sets them from the
++	 * apple_fw_debug parameter.
++	 */
++	wr32(heap, HEAP_U + 0x0, 0);
 +	wr32(heap, HEAP_V + 0x455c, fw_va(0x24000));	/* mapping ring control */
 +	wr32(heap, HEAP_V + 0x4560, fw_va(0x25000));	/* mapping ring entries */
 +	wr32(heap, HEAP_V + 0x45b4, 1);			/* engine scheduler init */
@@ -2434,6 +2508,22 @@ index 0000000..6a78b6e
 +	return HEAP_EVENT_RING + 0x1000 + 0x24 * (i % 256);
 +}
 +
++u32 pvr_apple_layout_debug_flags_offset(void)
++{
++	return HEAP_U;
++}
++
++/* The SKU trace ring: index of the next record, and record @i (36 bytes) */
++u32 pvr_apple_layout_sku_index(void)
++{
++	return HEAP_SKU_CONTROL + 0x20;
++}
++
++u32 pvr_apple_layout_sku_record(unsigned int i)
++{
++	return HEAP_SKU_RECORDS + 36 * (i % 512);
++}
++
 +u32 pvr_apple_layout_event_consumer(void)
 +{
 +	return HEAP_EVENT_RING;
@@ -2506,10 +2596,10 @@ index 0000000..6a78b6e
 +}
 diff --git a/drivers/gpu/drm/imagination/pvr_apple_layout.h b/drivers/gpu/drm/imagination/pvr_apple_layout.h
 new file mode 100644
-index 0000000..60d2c33
+index 0000000..8fa529b
 --- /dev/null
 +++ b/drivers/gpu/drm/imagination/pvr_apple_layout.h
-@@ -0,0 +1,62 @@
+@@ -0,0 +1,65 @@
 +/* SPDX-License-Identifier: GPL-2.0-only OR MIT */
 +/* Apple A10 (T8010) GPU firmware memory layout; see pvr_apple_layout.c. */
 +
@@ -2567,6 +2657,9 @@ index 0000000..60d2c33
 +u32 pvr_apple_layout_compute_producer(void);
 +u32 pvr_apple_layout_ring_index(u32 seq);
 +u32 pvr_apple_layout_stamp_offset(void);
++u32 pvr_apple_layout_debug_flags_offset(void);
++u32 pvr_apple_layout_sku_index(void);
++u32 pvr_apple_layout_sku_record(unsigned int i);
 +u32 pvr_apple_layout_event_consumer(void);
 +u32 pvr_apple_layout_event_producer(void);
 +u32 pvr_apple_layout_event_entry(unsigned int i);
@@ -2574,10 +2667,10 @@ index 0000000..60d2c33
 +#endif /* PVR_APPLE_LAYOUT_H */
 diff --git a/drivers/gpu/drm/imagination/pvr_apple_queue.c b/drivers/gpu/drm/imagination/pvr_apple_queue.c
 new file mode 100644
-index 0000000..f3c81d9
+index 0000000..d8eb7ba
 --- /dev/null
 +++ b/drivers/gpu/drm/imagination/pvr_apple_queue.c
-@@ -0,0 +1,142 @@
+@@ -0,0 +1,149 @@
 +// SPDX-License-Identifier: GPL-2.0-only OR MIT
 +/*
 + * Apple A10 (T8010) job queues.
@@ -2620,18 +2713,25 @@ index 0000000..f3c81d9
 +static enum drm_gpu_sched_stat pvr_apple_timedout_job(struct drm_sched_job *sched_job)
 +{
 +	struct pvr_job *job = container_of(sched_job, struct pvr_job, base);
++	struct drm_gpu_scheduler *sched = sched_job->sched;
++	int err;
 +
 +	/*
 +	 * Report the hang, restart the GPU (every job in flight ends with
 +	 * -ETIMEDOUT) and accept no further jobs on the guilty context: its
 +	 * owner sees the device lost, every other client goes on.
++	 *
++	 * The scheduler took the job off its pending list; drm_sched_stop()
++	 * puts it back, and drm_sched_start() completes it and the others
++	 * from their cancelled fences, so that free_job() runs for each.
 +	 */
 +	drm_err(from_pvr_device(job->pvr_dev), "Apple GPU job timed out\n");
 +	pvr_apple_report_hang(job->pvr_dev, sched_job->s_fence->parent);
 +	atomic_set(&job->ctx->faulty, 1);
-+	if (pvr_apple_reset(job->pvr_dev))
-+		return DRM_GPU_SCHED_STAT_ENODEV;
-+	return DRM_GPU_SCHED_STAT_RESET;
++	drm_sched_stop(sched, sched_job);
++	err = pvr_apple_reset(job->pvr_dev);
++	drm_sched_start(sched, 0);
++	return err ? DRM_GPU_SCHED_STAT_ENODEV : DRM_GPU_SCHED_STAT_RESET;
 +}
 +
 +static void pvr_apple_free_job(struct drm_sched_job *sched_job)
