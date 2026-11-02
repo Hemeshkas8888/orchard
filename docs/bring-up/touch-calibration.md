@@ -3,6 +3,9 @@
 How per-unit touch calibration reaches the touch controller, and how to
 check a new device. Verified on J71b (iPad 6) on 2026-10-28.
 
+When touch stops responding after it booted, see
+[touch-runtime.md](touch-runtime.md).
+
 ## The short version
 
 The touch firmware file (`*.z2fw`) is the same for every unit of a model.
