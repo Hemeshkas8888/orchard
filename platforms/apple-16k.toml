@@ -14,3 +14,4 @@ series = "kernel/series/apple-16k"       # ordered patch layers
 config = "kernel/configs/apple-16k/config"
 defconfig = "orchard_apple16k_defconfig"   # the same config in OrchardLinux/linux
 branch = "main"                    # its branch in OrchardLinux/linux
+loader = "m1n1"                    # the payload format that boots this kernel

@@ -20,6 +20,9 @@ DEVICES = REPO / 'devices'
 PLATFORMS = REPO / 'platforms'
 NAME = re.compile(r'[a-z0-9][a-z0-9_-]*')
 ARCHES = {'arm64', 'arm'}
+# The payload a platform's kernel boots in: m1n1 (m1n1 + Image.gz + DTBs +
+# initramfs) or cascadia (trampoline + zImage with appended DTB + built-in root).
+LOADERS = {'m1n1', 'cascadia'}
 
 
 def resolve(name):
@@ -71,8 +74,10 @@ def platform(name):
         raise ValueError(f'{descriptor}: kernel.defconfig must be a <name>_defconfig')
     if not re.fullmatch(r'[a-z0-9][a-z0-9._/-]*', str(kernel.get('branch', ''))):
         raise ValueError(f'{descriptor}: invalid kernel.branch')
+    if kernel.get('loader') not in LOADERS:
+        raise ValueError(f'{descriptor}: kernel.loader must be one of {sorted(LOADERS)}')
     return {'platform': platform_name, **{key: kernel[key] for key in
-            ('arch', 'image', 'dtbs', 'upstream', 'series', 'config', 'defconfig', 'branch')}}
+            ('arch', 'image', 'dtbs', 'upstream', 'series', 'config', 'defconfig', 'branch', 'loader')}}
 
 
 def patches(name):

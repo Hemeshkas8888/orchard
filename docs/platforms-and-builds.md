@@ -20,6 +20,7 @@ A platform is one kernel build shared by every board that names it in
 | `config` | full config | `kernel/configs/<name>/config` | `kernel/configs/apple-armv7/config` |
 | `defconfig` | the same config in OrchardLinux/linux | `orchard_apple16k_defconfig`, … | `orchard_applearmv7_defconfig` |
 | `branch` | its branch in OrchardLinux/linux | `main` | `armv7` |
+| `loader` | the payload format its kernel boots in | `m1n1` | `cascadia` |
 
 `kernel/series.py --platform NAME` prints the checked descriptor; `kernel/build`
 and orchard's kernel cache read it. A new platform is a new descriptor, not a
@@ -27,7 +28,7 @@ script. The platform layer of installed systems goes into the one arm64 root,
 so it and its CI job cover only `arch = "arm64"` platforms; apple-armv7 builds
 and caches, but has no platform layer until a root of its architecture exists.
 
-**Planned:** `loader`, the payload format of the platform: `m1n1` (m1n1 +
+**Done:** `loader`, the payload format of the platform (validated and printed; nothing uses it yet): `m1n1` (m1n1 +
 `Image.gz` + DTBs + initramfs) or `cascadia` (trampoline + `zImage` with
 appended DTB + built-in root). It follows from the kernel: m1n1 cannot run
 32-bit code. How a board reaches that loader (checkm8 and Pongo, an iBoot

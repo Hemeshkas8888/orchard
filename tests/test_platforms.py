@@ -22,6 +22,7 @@ series = "kernel/series/test-arm"
 config = "kernel/configs/test-arm/config"
 defconfig = "test_arm_defconfig"
 branch = "test"
+loader = "cascadia"
 '''
 
 
@@ -71,6 +72,7 @@ class Platforms(unittest.TestCase):
             'other schema': VALID.replace('schema = 1', 'schema = 2'),
             'no defconfig': VALID.replace('defconfig = "test_arm_defconfig"\n', ''),
             'bad branch': VALID.replace('branch = "test"', 'branch = "../x"'),
+            'unknown loader': VALID.replace('loader = "cascadia"', 'loader = "grub"'),
         }
         for case, text in cases.items():
             with self.subTest(case=case):
