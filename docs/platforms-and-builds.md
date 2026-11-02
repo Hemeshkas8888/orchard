@@ -71,33 +71,147 @@ Cascadia's history per file. Bring-up safeguards stay out of the kernel:
 storage protection is the installer's job (`runtime/recovery/storage-fence`),
 and Cascadia's NAND driver is read-only by construction.
 
-## Build arguments (planned)
+## Build arguments (done)
 
 1. Primitives take explicit arguments (`make PLATFORM=apple-16k`,
    `PLATFORM=all`, a producer's `--platform`) and work without orchard.
-2. `orchard build` passes the same arguments through: `--platform NAME|all`,
-   `--device BOARD`.
-3. `orchard.local.toml` only holds sticky defaults for those arguments.
-4. Precedence: argument, then `orchard.local.toml`, then the attached board,
-   else an error. A local build never means all platforms implicitly; CI
-   passes `--platform all`.
+2. `orchard build` passes the same arguments through: `--platform NAME|all`
+   (repeatable), `--device BOARD`.
+3. `orchard.local.toml` only holds sticky defaults for those arguments
+   (`platform`, `device`, `kernel-tree`).
+4. Precedence: argument, then `--device`, then `orchard.local.toml`, then the
+   attached board, else an error. A local build never means all platforms
+   implicitly; CI passes `--platform all`.
 
-## Distribution builds (planned)
+**Done:** `--kernel-tree PATH` builds a kernel tree of your own (a branch of
+OrchardLinux/linux) with its tree's defconfig instead of orchard's patched
+tree, cached apart from orchard's kernels (`kernel-tree-*`) and recorded in
+`build.json`. Kernel work happens on such a branch; `export.py` turns it into
+patch files at the end. It takes RAM payloads only, until distributions are
+projects like any other (below).
 
-- A distribution builds its own inputs with its own plain command (desktop,
-  root) and runs without orchard. `orchard build` in its checkout composes:
-  the project's build, the platform layer, assembly.
+## Projects, producers and boot (planned)
+
+Agreed November 2026. It replaces the separate paths for RAM payloads
+(`payload.toml`) and distributions (`distro.toml`): today a distribution's
+build entry calls orchard's internals itself (`platform.kernel()`,
+`prepare_shared()`, its own m1n1), so no orchard option (`--kernel-tree`, the
+platform, the m1n1) reaches it without its own wiring.
+
+### Three layers, each usable without the orchard CLI
+
+1. **Producers** are plain commands, files in and files out. The kernel is
+   `kernel/build` here; after the switch it is `make
+   orchard_apple16k_defconfig && make` in OrchardLinux/linux. m1n1 is `make`
+   in OrchardLinux/m1n1. A root is the project's own command. Instead of
+   compiling, a platform's components (kernel, modules, DTBs, m1n1) can come
+   from a published build with its `SHA256SUMS`. A producer may use a
+   container, but never imports orchard's Python; producers exchange files
+   and a small receipt (JSON) of what was built from what.
+2. **Assembly** is a standalone script: m1n1, kernel, DTBs, initramfs and
+   splash in, `linux.bin` out. At its core this is m1n1's payload format
+   (m1n1 with DTB, `Image.gz` and initramfs appended, as Asahi documents it);
+   what orchard's assembly adds beyond that (`boot.json`, several DTBs) is
+   written down so it can be redone by hand.
+3. **Boot** by any route: palera1n/Pongo, the m1n1 proxy, the orchard
+   launcher. The commands for each are documented.
+
+So a user can build a project's root, take or build the platform's
+components, assemble and boot without orchard. The orchard CLI does what is
+tedious by hand: it resolves platform and device, reuses the cache, takes
+the kernel from a published build, a local build or `--kernel-tree`, runs
+the producers and the assembly, and boots. `--explain` prints the plain
+commands it would run, so the standalone path is documented by the tool and
+cannot drift from it.
+
+### Two stages: initramfs and root
+
+| Stage | Job | Supplied by |
+|---|---|---|
+| 1: initramfs | find the root, switch to it | orchard by default: today the initrd of the platform layer (`image/platform.py` `initrd()`: BusyBox and the storage modules) for installed systems. A project may bring its own; this boundary is expected to move as the tooling does. |
+| 2: root | the system | the project (a distribution's root), or orchard (the recovery/installer) |
+
+A RAM example (`examples/minimal-boot`) is the case without a stage 2: its
+`init` and `rootfs/` are packed into the initramfs (`orchard.image.initramfs`)
+and nothing switches root.
+
+The boot mode is where stage 1 gets the root from, chosen when booting, not
+declared by the project:
+
+| Mode | Root from | Chosen by |
+|---|---|---|
+| RAM | the whole root image, loaded with the kernel | `orchard run --root ram`; refused early if it does not fit the device's memory (device data) |
+| Recovery / installer | orchard's installer system as stage 2, the release as data | the default of `orchard run` for an installable project |
+| Installed | a partition on the device (BLS, read by m1n1) | `orchard launch` |
+| Live | the host over USB (NBD or NFS over the gadget network), later USB storage; a tmpfs overlay makes it writable | `--root host` |
+
+Working in an existing system (`orchard launch`, then `push`, `pull`,
+`exec`) is a session with a device, not a build, and is not declared.
+
+One root image format for every mode (ext4 or erofs, to decide) is what
+makes this work: RAM, live and installed boots use the same file, so what is
+tested is what is installed. A root directory remains for RAM examples and
+NFS.
+
+### The project file
+
+One file for every project, say `orchard.toml`, replacing `payload.toml` and
+`distro.toml`. It declares what the project builds and never which board it
+is for; the kernel is the platform's, and a developer's choices (`platform`,
+`device`, `kernel-tree`) stay in arguments and `orchard.local.toml`.
+
+```toml
+# A RAM example
+name = "minimal-boot"
+[root]
+init = "init"
+files = "rootfs"
+transport = false            # no USB session helper
+```
+
+```toml
+# A distribution
+name = "minimal-linux"
+[root]
+build = "tools/build-root"   # plain command: --output DIR --arch arm64
+format = "image"
+[initramfs]                  # optional: a stage 1 of its own
+[boot]
+splash = "boot/splash.png"   # data for orchard's m1n1
+cmdline = "quiet"
+[release]                    # optional: installable
+installer = true
+```
+
+### Carried over
+
 - The platform layer (kernel, modules, DTBs, firmware recipes, initrd) is
   orchard's artifact. A distribution build takes it finished for its orchard
-  revision; it is compiled locally only on request, e.g. by someone working
-  on the kernel (`--kernel PATH`).
+  revision and compiles it locally only on request (`--kernel-tree`).
 - A local test build covers one platform; releases cover all.
-- The contract between a distribution and orchard is files, not Python
-  imports of orchard's internals.
 - One m1n1, orchard's. A distribution supplies its splash as data: an
   installed boot already reads it per entry from the boot partition; a RAM
   boot gets it over the m1n1 proxy from the launcher (to verify: earlier
   attempts at injecting it failed). Distribution m1n1 builds go away.
+- The A5 (`cascadia` loader) packs stage 1 into the zImage because iBEC
+  passes no initrd. As its launcher is rebuilt from first principles, the
+  aim is that it differs from arm64 only in having no m1n1; how far that
+  goes is open.
+
+### Open
+
+- Recovery semantics: whether a distribution can bring its own recovery, or
+  only data (name, splash) for orchard's.
+- The root image format.
+- Live boot is its own later item: the stage-1 sources (host over USB, then
+  USB storage) and the launcher side.
+
+### Order
+
+1. Assembly as a standalone script.
+2. `--explain`.
+3. minimal-linux as an `orchard.toml` project.
+4. omarchy-a.
 
 ## Build environment (planned)
 
