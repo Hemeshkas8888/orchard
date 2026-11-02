@@ -6,7 +6,6 @@ policy or device access. The hardware/CLI ownership boundary remains provisional
 from contextlib import contextmanager
 import fcntl
 import hashlib
-import inspect
 import json
 import os
 import re
@@ -21,7 +20,12 @@ import tomllib
 
 from . import sources, kernel as kernels
 
-_BASE_PRODUCER = kernels.build_base
+# The kernel producers' version: kernel/build, kernel/build-modules,
+# kernel/stage-modules.py, kernel/series.py, src/orchard/buildenv.py,
+# src/orchard/kernel_sdk.py and orchard.kernel's build functions. Their text is
+# not part of the cache key, so a refactor rebuilds nothing; raise this when a
+# change alters what they produce (files, contents or layout of a kernel bundle).
+KERNEL_PRODUCER = 1
 
 
 PAYLOAD = 'payload.toml'
@@ -163,25 +167,22 @@ def cache_root():
 
 
 def kernel_base_inputs(hardware, device, cache):
-    """Same inputs before and after source checkout; external modules are separate.
+    """What determines a platform's compiled kernel; the same before and after source checkout.
 
-    The base is per platform, so devices of one platform share it. Patches are
-    represented by the resulting source tree, so neither other platforms' patch
-    layers nor documentation next to the config select a new base.
+    The source tree (upstream base plus the platform's patch series), the
+    config, the descriptor's build fields, the toolchain image and the
+    producer version. Not the text of the build scripts (see KERNEL_PRODUCER),
+    and not descriptor fields that do not build anything (defconfig, branch,
+    description). The base is per platform; devices of one platform share it.
     """
     platform = kernels.layout(hardware, device)[0]
     described = kernels.descriptor(hardware, device)
-    recipes = recipe_entries(hardware, [
-        'platforms/' + platform + '.toml', described['upstream'], described['config'], described['series'],
-        'kernel/series.py', 'kernel/build', 'kernel/Containerfile', 'kernel/install-toolchain',
-        'kernel/stage-modules.py', 'src/orchard/buildenv.py',
-    ])
-    # Hash only the binary/SDK producer, not unrelated functions in kernel.py.
     return {
         'platform': platform,
-        'recipes': recipes,
-        'producer': hashlib.sha256(inspect.getsource(_BASE_PRODUCER).encode()).hexdigest(),
-        'sdk': digest(Path(__file__).with_name('kernel_sdk.py')),
+        'build': {key: described[key] for key in ('arch', 'image', 'dtbs')},
+        'recipes': recipe_entries(hardware, [described['config'], 'kernel/Containerfile',
+                                             'kernel/install-toolchain']),
+        'producer': KERNEL_PRODUCER,
         'tree': kernels.source_tree(hardware, cache, device),
         'mode': os.environ.get('ORCHARD_BUILD_NATIVE', '0') + ':' + os.environ.get('ORCHARD_BUILD_ENV_ID', ''),
     }
@@ -198,9 +199,8 @@ def kernel_inputs(hardware, device, base_key):
     """
     platform, dtb = kernels.layout(hardware, device)
     return {
-        'base': base_key, 'platform': platform, 'dtb': dtb,
-        'recipes': recipe_entries(hardware, ['kernel/modules/' + device, 'kernel/build-modules',
-                                             'kernel/stage-modules.py']),
+        'base': base_key, 'platform': platform, 'dtb': dtb, 'producer': KERNEL_PRODUCER,
+        'recipes': recipe_entries(hardware, ['kernel/modules/' + device]),
     }
 
 

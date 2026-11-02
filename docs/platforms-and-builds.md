@@ -103,6 +103,8 @@ and Cascadia's NAND driver is read-only by construction.
 - Cache keys follow what determines the output (source tree, config,
   toolchain image, build flags), not the text of the scripts that run it; a
   producer change that alters output bumps an explicit producer version.
+  **Done for kernels** (`KERNEL_PRODUCER`); m1n1, Pongo and the recovery tools
+  still hash their scripts.
 - Root and desktop as separate layers: the package base is reused while the
   package list is unchanged; a desktop change does not reinstall it.
 - Package caches (pacman, apk, apt) are host directories mounted into image

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Cache: this script's text is not part of the cached kernel's key. If a change
+# alters what it produces, raise KERNEL_PRODUCER in src/orchard/build.py.
 """Install built kernel and additional modules into a local filesystem tree."""
 import argparse
 from pathlib import Path
