@@ -4,9 +4,14 @@
 # Walking up from the current directory, the first match wins:
 # - an orchard checkout (pyproject.toml of the project "orchard"): that checkout;
 # - an orchard.local.toml with orchard = "PATH": the checkout at PATH, relative
-#   to that file, e.g. your own clone or a worktree on a branch;
-# otherwise mainline: orchard's main branch, cloned into the Orchard cache once
-# and changed only by `orchard update`, so nothing moves under a running build.
+#   to that file, e.g. your own clone or a worktree on a branch; or with
+#   orchard = "nightly-YYYYMMDD-COMMIT" or "vX.Y.Z": that published version;
+# otherwise the newest nightly: resolved once per command (nightly/latest.json),
+# a shallow clone of its tag in the Orchard cache (tooling/NAME), so a command
+# runs one version from start to end and the next one picks up a newer nightly.
+# Offline, the newest nightly already in the cache. Until a nightly is
+# published, or with ORCHARD_TOOLING=mainline: mainline, orchard's main branch
+# cloned into the cache and changed only by `orchard update`.
 #
 # `orchard python ARGS` runs Python in that checkout's environment, for a
 # distribution's own scripts; `orchard checkout` prints which checkout runs;
@@ -16,16 +21,63 @@ set -eu
 cache=${ORCHARD_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/orchard}
 
 main=$cache/orchard-main
+url=${ORCHARD_MAINLINE_URL:-https://github.com/OrchardLinux/orchard.git}
+releases=${ORCHARD_RELEASES_URL:-https://github.com/OrchardLinux/orchard/releases/download}
+
+# A published version (nightly-YYYYMMDD-COMMIT or vX.Y.Z), cloned once at its tag.
+version() {
+    dir=$cache/tooling/$1
+    if [ ! -d "$dir/.git" ]; then
+        mkdir -p "$cache/tooling"
+        partial=$(mktemp -d "$cache/tooling/.$1.XXXXXX")
+        echo "orchard: fetching $1" >&2
+        if ! git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$1" "$url" "$partial/orchard" >&2; then
+            rm -rf "$partial"
+            echo "orchard: no orchard version $1" >&2
+            exit 1
+        fi
+        mv "$partial/orchard" "$dir" 2>/dev/null || [ -d "$dir/.git" ]  # another command was first
+        rm -rf "$partial"
+    fi
+    printf '%s\n' "$dir"
+}
+
+# The newest nightly, else (offline) the newest cached one, else mainline.
+newest() {
+    if [ "${ORCHARD_TOOLING:-}" = mainline ]; then
+        mainline
+        return
+    fi
+    name=$(curl -fsSL --max-time 20 "$releases/nightly/latest.json" 2>/dev/null |
+        sed -n 's/.*"name": *"\(nightly-[0-9]\{8\}-[0-9a-f]\{12\}\)".*/\1/p')
+    if [ -n "$name" ]; then
+        version "$name"
+        return
+    fi
+    cached=$(ls -d "$cache"/tooling/nightly-* 2>/dev/null | sort | tail -n 1)
+    if [ -n "$cached" ]; then
+        echo "orchard: no network; the newest cached nightly, $(basename "$cached")" >&2
+        printf '%s\n' "$cached"
+        return
+    fi
+    echo "orchard: no nightly published yet; mainline" >&2
+    mainline
+}
 
 mainline() {
     if [ ! -d "$main/.git" ]; then
         mkdir -p "$cache"
-        git clone --quiet "${ORCHARD_MAINLINE_URL:-https://github.com/OrchardLinux/orchard.git}" "$main" >&2
+        git clone --quiet "$url" "$main" >&2
     fi
     printf '%s\n' "$main"
 }
 
 update() {
+    case $1 in
+        "$cache"/tooling/*)
+            echo "orchard runs $(basename "$1"): the newest nightly, looked up by every command; nothing to update" >&2
+            return ;;
+    esac
     if [ "$1" != "$main" ]; then
         echo "orchard runs your checkout $1; update it with git" >&2
         return
@@ -55,6 +107,10 @@ checkout() {
         if [ -f "$dir/orchard.local.toml" ]; then
             path=$(sed -n 's/^orchard[[:space:]]*=[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' "$dir/orchard.local.toml" | head -n 1)
             if [ -n "$path" ]; then
+                if printf '%s' "$path" | grep -Eqx 'nightly-[0-9]{8}-[0-9a-f]{12}|v[0-9]+\.[0-9]+\.[0-9]+'; then
+                    version "$path"
+                    return
+                fi
                 case $path in
                     /*) ;;
                     "~/"*) path=$HOME/${path#"~/"} ;;
@@ -71,7 +127,7 @@ checkout() {
         [ "$dir" = / ] && break
         dir=$(dirname "$dir")
     done
-    mainline
+    newest
 }
 
 command -v uv >/dev/null 2>&1 || {

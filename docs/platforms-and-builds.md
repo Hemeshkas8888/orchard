@@ -299,6 +299,14 @@ supplies the build code today goes away.
   installing. A stable distribution release pins, and for now bundles, a
   stable orchard release; until one exists, distribution releases are
   previews on a nightly.
+- **Done, first part:** outside an orchard checkout, `bin/orchard` runs the
+  newest nightly (looked up per command through `latest.json`, a shallow
+  clone of its tag in `tooling/NAME`), offline the newest cached one, before
+  the first nightly or with `ORCHARD_TOOLING=mainline` mainline;
+  `orchard.local.toml` may pin `orchard = "nightly-…"` or `"vX.Y.Z"`. Its
+  kernels then come from that nightly (same files, same source key) and its
+  Pongo too (`git describe` finds the nightly's tag); m1n1 and the tools are
+  still built locally.
 - The installed CLI is thin, like `bin/flutter`: in a project checkout
   (`git clone omarchy-a && cd omarchy-a && orchard run`) it resolves the
   newest nightly once at the start of the build, fetches its tooling
