@@ -60,7 +60,7 @@ queue on top of upstream, not a fork:
 Configs live in the tree as defconfigs (`arch/<arch>/configs/`); orchard only
 names them. Until the switch, `kernel/configs` is authoritative: regenerate
 makes the tree's defconfigs from it and checks they reproduce it byte for
-byte. **Planned:** what differs from the source of truth is refused, never
+byte. **Done:** what differs from the source of truth is refused, never
 corrected silently. `export.py` carries a branch's defconfig change into
 `kernel/configs/<platform>/config` (`make olddefconfig`), so it reaches orchard
 the way any change does; regenerate refuses to move a branch whose
