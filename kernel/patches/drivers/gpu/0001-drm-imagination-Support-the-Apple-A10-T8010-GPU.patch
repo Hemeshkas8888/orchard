@@ -43,8 +43,8 @@ Assisted-by: LLM
 ---
  drivers/gpu/drm/imagination/Kconfig           |   12 +
  drivers/gpu/drm/imagination/Makefile          |    5 +
- drivers/gpu/drm/imagination/pvr_apple.c       | 1581 +++++++++++++++++
- drivers/gpu/drm/imagination/pvr_apple.h       |  137 ++
+ drivers/gpu/drm/imagination/pvr_apple.c       | 1634 +++++++++++++++++
+ drivers/gpu/drm/imagination/pvr_apple.h       |  142 ++
  .../gpu/drm/imagination/pvr_apple_layout.c    |  746 ++++++++
  .../gpu/drm/imagination/pvr_apple_layout.h    |   65 +
  drivers/gpu/drm/imagination/pvr_apple_queue.c |  149 ++
@@ -53,7 +53,7 @@ Assisted-by: LLM
  drivers/gpu/drm/imagination/pvr_device.c      |   60 +-
  drivers/gpu/drm/imagination/pvr_device.h      |   14 +
  drivers/gpu/drm/imagination/pvr_drv.c         |   17 +
- drivers/gpu/drm/imagination/pvr_free_list.c   |   28 +-
+ drivers/gpu/drm/imagination/pvr_free_list.c   |   44 +-
  drivers/gpu/drm/imagination/pvr_hwrt.c        |   54 +-
  drivers/gpu/drm/imagination/pvr_hwrt.h        |    8 +
  drivers/gpu/drm/imagination/pvr_job.c         |   52 +-
@@ -66,7 +66,7 @@ Assisted-by: LLM
  drivers/gpu/drm/imagination/pvr_stream_defs.h |    2 +
  drivers/gpu/drm/imagination/pvr_vm.c          |  106 +-
  drivers/gpu/drm/imagination/pvr_vm.h          |    2 +
- 25 files changed, 3207 insertions(+), 64 deletions(-)
+ 25 files changed, 3277 insertions(+), 68 deletions(-)
  create mode 100644 drivers/gpu/drm/imagination/pvr_apple.c
  create mode 100644 drivers/gpu/drm/imagination/pvr_apple.h
  create mode 100644 drivers/gpu/drm/imagination/pvr_apple_layout.c
@@ -114,10 +114,10 @@ index a5c5e38..de8d1b1 100644
  
 diff --git a/drivers/gpu/drm/imagination/pvr_apple.c b/drivers/gpu/drm/imagination/pvr_apple.c
 new file mode 100644
-index 0000000..857547b
+index 0000000..dca3536
 --- /dev/null
 +++ b/drivers/gpu/drm/imagination/pvr_apple.c
-@@ -0,0 +1,1581 @@
+@@ -0,0 +1,1634 @@
 +// SPDX-License-Identifier: GPL-2.0-only OR MIT
 +/*
 + * Apple A10 (T8010) support: Rogue fixed-function hardware driven by Apple's
@@ -259,6 +259,10 @@ index 0000000..857547b
 +
 +	/* Backs GPU VA 0 in userspace VMs: the end-of-render writes there */
 +	struct pvr_gem_object *zero_obj;
++
++	/* Parameter-manager pages every free list hands out (pvr_apple_pm_pages()) */
++	struct mutex pm_lock;
++	struct pvr_gem_object *pm_pages;
 +
 +	/*
 +	 * GPU pages of the kernel VM context: data (stream, terminate PDS,
@@ -553,6 +557,8 @@ index 0000000..857547b
 +	err = devm_mutex_init(dev, &apple->submit_lock);
 +	if (!err)
 +		err = devm_mutex_init(dev, &apple->perf_lock);
++	if (!err)
++		err = devm_mutex_init(dev, &apple->pm_lock);
 +	if (err)
 +		return err;
 +	spin_lock_init(&apple->fence_lock);
@@ -1653,6 +1659,48 @@ index 0000000..857547b
 +	return err;
 +}
 +
++/**
++ * pvr_apple_pm_pages() - The parameter-manager pages every free list hands out
++ * @pvr_dev: Target device.
++ * @size: Bytes a free list needs.
++ *
++ * The firmware runs one geometry scene at a time, and the kernel serialises
++ * them across all clients (pvr_apple_job_add_deps()), so the free list of
++ * every Vulkan device can point at the same pages instead of pinning its own
++ * (32 MiB each from Mesa: 36 MB per GPU client, 2026-11-03).
++ *
++ * The pages are as many as Mesa's G9P parameter buffer (32 MiB): a device's
++ * smaller lists, created first, must not size them.
++ *
++ * Return: a new reference to the shared pages, ERR_PTR(-E2BIG) if a list
++ * needs more than they hold (it then gets its own), or another ERR_PTR().
++ */
++#define APPLE_PM_PAGES_SIZE	SZ_32M
++
++struct pvr_gem_object *pvr_apple_pm_pages(struct pvr_device *pvr_dev, size_t size)
++{
++	struct pvr_apple *apple = to_apple(pvr_dev);
++	struct pvr_gem_object *obj;
++
++	mutex_lock(&apple->pm_lock);
++	if (!apple->pm_pages) {
++		obj = pvr_gem_object_create(pvr_dev, max_t(size_t, size, APPLE_PM_PAGES_SIZE),
++					    PVR_BO_FW_FLAGS_DEVICE_CACHED);
++		if (IS_ERR(obj)) {
++			mutex_unlock(&apple->pm_lock);
++			return obj;
++		}
++		apple->pm_pages = obj;
++	}
++	obj = apple->pm_pages;
++	if (pvr_gem_object_size(obj) < size)
++		obj = ERR_PTR(-E2BIG);
++	else
++		drm_gem_object_get(gem_from_pvr_gem(obj));
++	mutex_unlock(&apple->pm_lock);
++	return obj;
++}
++
 +void pvr_apple_fw_fini(struct pvr_device *pvr_dev)
 +{
 +	struct pvr_apple *apple = to_apple(pvr_dev);
@@ -1665,6 +1713,11 @@ index 0000000..857547b
 +		pvr_apple_switch_to_kernel_vm(apple, NULL);
 +	pvr_apple_cancel_fences(apple, -ENODEV);
 +	pvr_apple_gpu_pages_fini(apple);
++	if (apple->pm_pages) {
++		/* free lists still holding the pages keep their own references */
++		pvr_gem_object_put(apple->pm_pages);
++		apple->pm_pages = NULL;
++	}
 +	if (!apple->booted)
 +		return;
 +	pvr_apple_request_power_state(apple, 0);
@@ -1701,10 +1754,10 @@ index 0000000..857547b
 +}
 diff --git a/drivers/gpu/drm/imagination/pvr_apple.h b/drivers/gpu/drm/imagination/pvr_apple.h
 new file mode 100644
-index 0000000..13b1970
+index 0000000..e3fea66
 --- /dev/null
 +++ b/drivers/gpu/drm/imagination/pvr_apple.h
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,142 @@
 +/* SPDX-License-Identifier: GPL-2.0-only OR MIT */
 +/* Apple A10 (T8010): Rogue hardware behind Apple's GFX firmware. */
 +
@@ -1792,6 +1845,7 @@ index 0000000..13b1970
 +#if IS_ENABLED(CONFIG_DRM_POWERVR_APPLE)
 +int pvr_apple_fw_init(struct pvr_device *pvr_dev);
 +void pvr_apple_fw_fini(struct pvr_device *pvr_dev);
++struct pvr_gem_object *pvr_apple_pm_pages(struct pvr_device *pvr_dev, size_t size);
 +int pvr_apple_reset(struct pvr_device *pvr_dev);
 +void pvr_apple_device_info_init(struct pvr_device *pvr_dev);
 +struct dma_fence *pvr_apple_submit_compute_job(struct pvr_device *pvr_dev,
@@ -1814,6 +1868,10 @@ index 0000000..13b1970
 +#else
 +static inline int pvr_apple_fw_init(struct pvr_device *pvr_dev) { return -ENODEV; }
 +static inline void pvr_apple_fw_fini(struct pvr_device *pvr_dev) {}
++static inline struct pvr_gem_object *pvr_apple_pm_pages(struct pvr_device *pvr_dev, size_t size)
++{
++	return ERR_PTR(-E2BIG);
++}
 +static inline int pvr_apple_reset(struct pvr_device *pvr_dev) { return -ENODEV; }
 +static inline void pvr_apple_device_info_init(struct pvr_device *pvr_dev) {}
 +static inline int pvr_apple_vm_init(struct pvr_device *pvr_dev, struct pvr_vm_context *vm_ctx)
@@ -3170,10 +3228,40 @@ index 5c965ef..5db075d 100644
  		.compatible = "thead,th1520-gpu",
  		.data = &pvr_device_data_pwrseq,
 diff --git a/drivers/gpu/drm/imagination/pvr_free_list.c b/drivers/gpu/drm/imagination/pvr_free_list.c
-index e85cac8..0aed32d 100644
+index e85cac8..48c4894 100644
 --- a/drivers/gpu/drm/imagination/pvr_free_list.c
 +++ b/drivers/gpu/drm/imagination/pvr_free_list.c
-@@ -438,9 +438,15 @@ pvr_free_list_create(struct pvr_file *pvr_file,
+@@ -1,6 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-only OR MIT
+ /* Copyright (c) 2023 Imagination Technologies Ltd. */
+ 
++#include "pvr_apple.h"
+ #include "pvr_free_list.h"
+ #include "pvr_gem.h"
+ #include "pvr_hwrt.h"
+@@ -316,10 +317,17 @@ pvr_free_list_grow(struct pvr_free_list *free_list, u32 num_pages)
+ 	free_list_node->num_pages = num_pages;
+ 	free_list_node->free_list = free_list;
+ 
+-	free_list_node->mem_obj = pvr_gem_object_create(pvr_dev,
+-							num_pages <<
+-							ROGUE_BIF_PM_PHYSICAL_PAGE_ALIGNSHIFT,
+-							PVR_BO_FW_FLAGS_DEVICE_CACHED);
++	/* Apple: the pages all free lists share, if they are enough */
++	free_list_node->mem_obj = ERR_PTR(-E2BIG);
++	if (pvr_device_is_apple(pvr_dev))
++		free_list_node->mem_obj =
++			pvr_apple_pm_pages(pvr_dev, (size_t)num_pages <<
++						    ROGUE_BIF_PM_PHYSICAL_PAGE_ALIGNSHIFT);
++	if (PTR_ERR_OR_ZERO(free_list_node->mem_obj) == -E2BIG)
++		free_list_node->mem_obj = pvr_gem_object_create(pvr_dev,
++								num_pages <<
++								ROGUE_BIF_PM_PHYSICAL_PAGE_ALIGNSHIFT,
++								PVR_BO_FW_FLAGS_DEVICE_CACHED);
+ 	if (IS_ERR(free_list_node->mem_obj)) {
+ 		err = PTR_ERR(free_list_node->mem_obj);
+ 		goto err_free;
+@@ -438,9 +446,15 @@ pvr_free_list_create(struct pvr_file *pvr_file,
  	if (err)
  		goto err_destroy_kernel_structure;
  
@@ -3192,7 +3280,7 @@ index e85cac8..0aed32d 100644
  
  	err = pvr_free_list_grow(free_list, args->initial_num_pages);
  	if (err < 0)
-@@ -449,9 +455,10 @@ pvr_free_list_create(struct pvr_file *pvr_file,
+@@ -449,9 +463,10 @@ pvr_free_list_create(struct pvr_file *pvr_file,
  	return free_list;
  
  err_fw_struct_cleanup:
@@ -3206,7 +3294,7 @@ index e85cac8..0aed32d 100644
  
  err_free_fw_id:
  	xa_erase(&free_list->pvr_dev->free_list_ids, free_list->fw_id);
-@@ -476,9 +483,9 @@ pvr_free_list_release(struct kref *ref_count)
+@@ -476,9 +491,9 @@ pvr_free_list_release(struct kref *ref_count)
  
  	xa_erase(&free_list->pvr_dev->free_list_ids, free_list->fw_id);
  
@@ -3219,7 +3307,7 @@ index e85cac8..0aed32d 100644
  	if (err == -EBUSY) {
  		/* Flush the FWCCB to process any HWR or freelist reconstruction
  		 * request that might keep the freelist busy, and try again.
-@@ -502,7 +509,8 @@ pvr_free_list_release(struct kref *ref_count)
+@@ -502,7 +517,8 @@ pvr_free_list_release(struct kref *ref_count)
  	/* clang-format on */
  
  	free_list_destroy_kernel_structure(free_list);
