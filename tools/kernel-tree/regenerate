@@ -69,12 +69,18 @@ try:
     def lock(path):
         return dict(l.split('=', 1) for l in (snapshot / path).read_text().splitlines() if '=' in l)
 
+    def layers(path):
+        """The series' layer lines, without comments: what is applied."""
+        return [l.split('#', 1)[0].strip() for l in (snapshot / path).read_text().splitlines()
+                if l.split('#', 1)[0].strip()]
+
     for branch, names in sorted(branches.items()):
         first = described[names[0]]
         for name in names[1:]:
-            for key in ('upstream', 'series'):
-                if (snapshot / described[name][key]).read_text() != (snapshot / first[key]).read_text():
-                    sys.exit(f'{name} and {names[0]} share branch {branch} but not their {key}')
+            if lock(described[name]['upstream']) != lock(first['upstream']):
+                sys.exit(f'{name} and {names[0]} share branch {branch} but not their upstream base')
+            if layers(described[name]['series']) != layers(first['series']):
+                sys.exit(f'{name} and {names[0]} share branch {branch} but not their patch layers')
         git(args.linux, 'check-ref-format', '--branch', branch)
         base = lock(first['upstream'])
         if subprocess.run(['git', '-C', args.linux, 'cat-file', '-e', base['commit'] + '^{commit}'],
