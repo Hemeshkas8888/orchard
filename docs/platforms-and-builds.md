@@ -275,6 +275,40 @@ a running build in another session reads. Mainline now changes only with
 `orchard update`; a checkout of your own (or one `orchard.local.toml` names)
 is yours to update with git. A fix for a running build means restarting it.
 
+## Nightlies
+
+**Done (CI):** a scheduled run (03:17 UTC) builds every published component
+of orchard main when main moved since the last nightly, or on dispatch with
+`nightly: true`, and replaces the rolling pre-release `nightly`: tag
+`nightly` moves to the built commit, the assets are the same as a release's
+(per arm64 platform a component bundle, m1n1, Pongo, tools, `SHA256SUMS`,
+attestation) plus `nightly.json` (commit, build time, run). GitHub's latest
+release, which `orchard update` and the installer read, never points at a
+pre-release. Distributions take it with `HARDWARE_TAG=nightly`. apple-armv7
+is not in it: it shares no patch layer with the arm64 platforms, so a nightly
+would only rebuild the same kernel.
+
+**Planned, at the switch** (trees authoritative): a nightly is a tuple of
+commits, recorded in `nightly.json`: orchard (descriptors, device data,
+producers, tools), OrchardLinux/linux per platform branch, OrchardLinux/m1n1
+main, the Pongo pin.
+
+- The kernel job clones OrchardLinux/linux at the descriptor's branch and
+  runs `kernel/build PLATFORM --kernel-tree DIR`, the path that gives a
+  kernel byte for byte identical to the series build today; m1n1 likewise
+  from its tree.
+- A nightly runs when any of those repositories moved since the last one.
+- A platform is rebuilt only when its inputs moved (its branch, its config,
+  the shared toolchain and build scripts); otherwise the last nightly's
+  bundle is reused. apple-armv7 then joins and rebuilds only when its branch
+  or the shared files move.
+- **Nightlies follow the branch heads; releases pin them** (decided November
+  2026): at tag time orchard writes the commit tuple into a lock, as
+  `upstream.lock` pins the base today, so a release rebuilds exactly. A
+  kernel change needs no second commit in orchard to reach the nightly.
+- **Planned before that:** a local build uses the nightly's kernel when its
+  cache key equals the local one, instead of compiling.
+
 ## Build caching (planned, last)
 
 - Cache keys follow what determines the output (source tree, config,
