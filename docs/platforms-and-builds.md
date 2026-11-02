@@ -299,15 +299,15 @@ supplies the build code today goes away.
   installing. A stable distribution release pins, and for now bundles, a
   stable orchard release; until one exists, distribution releases are
   previews on a nightly.
-- **Done, first part:** outside an orchard checkout, `bin/orchard` runs the
+- **Done, first part:** the `orchard` on PATH (`tools/launcher`) runs the
   newest nightly (looked up per command through `latest.json`, a shallow
   clone of its tag in `tooling/NAME`), offline the newest cached one, before
-  the first nightly or with `ORCHARD_TOOLING=mainline` mainline;
-  `orchard.local.toml` may pin `orchard = "nightly-…"` or `"vX.Y.Z"`. Its
+  the first nightly orchard main; `ORCHARD_VERSION` pins one. Nothing looks at
+  the current directory: a checkout's `bin/orchard` runs that checkout. Its
   kernels, m1n1 and tools then come from that nightly (same files, same
   source keys) and its Pongo too (`git describe` finds the nightly's tag).
-  The launcher itself lives in mainline: `orchard update` moves mainline to
-  the newest nightly, and a launcher older than the nightly it runs says so.
+  `orchard update` installs the newest nightly's launcher, and a launcher
+  older than the nightly it runs says so.
   The user core an installer leaves (install, launch, devices) stays on
   stable releases; the two meet in the Rust launcher.
 - The installed CLI is thin, like `bin/flutter`: in a project checkout
@@ -318,9 +318,10 @@ supplies the build code today goes away.
   The project builds only its own parts; nothing of orchard is compiled. A
   nightly published meanwhile counts from the next build on, so nothing
   changes under a running build. Offline, the newest cached nightly, said so.
-- Pinning stays: `orchard.local.toml` names a nightly, a release or a
-  checkout of your own, and `--kernel-tree` a kernel tree; a checkout of
-  your own compiles, or takes a published kernel whose source key matches.
+- Pinning stays: `ORCHARD_VERSION` names a nightly or a release, a
+  checkout's `bin/orchard` runs that checkout, and `--kernel-tree` a kernel
+  tree; a checkout of your own compiles, or takes a published component
+  whose source key matches.
   `--kernel-tree` stays a path: a branch without a clone of one's own is
   `git clone --depth 1 -b BRANCH https://github.com/OrchardLinux/linux`.
 - **Later, for testers:** a pull request's or branch's kernel built by CI
