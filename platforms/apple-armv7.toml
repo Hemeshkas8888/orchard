@@ -2,15 +2,15 @@
 # devices/<board>/device.toml names it in [kernel] platform.
 schema = 1
 kind = "hardware.platform"
-name = "armv7-a5"
-description = "A5: 32-bit ARMv7, Project Cascadia's port on Linux 6.12"
+name = "apple-armv7"
+description = "Apple 32-bit SoCs (A5, A5X, A6, A6X): Project Cascadia's port on Linux 6.12; first board P105"
 
 [kernel]
 arch = "arm"                            # make ARCH=
 image = "zImage"                        # make target; the payload's kernel file
 dtbs = "arch/arm/boot/dts/apple"        # where make dtbs leaves the boards' DTBs
 upstream = "kernel/upstream-v6.12.lock" # base the series applies to
-series = "kernel/series/armv7-a5"       # ordered patch layers
-config = "kernel/configs/armv7-a5/config"
-defconfig = "orchard_armv7a5_defconfig"   # the same config in OrchardLinux/linux
-branch = "a5"                      # its branch in OrchardLinux/linux
+series = "kernel/series/apple-armv7"    # ordered patch layers
+config = "kernel/configs/apple-armv7/config"
+defconfig = "orchard_applearmv7_defconfig"   # the same config in OrchardLinux/linux
+branch = "armv7"                   # its branch in OrchardLinux/linux

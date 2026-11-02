@@ -10,21 +10,21 @@ A platform is one kernel build shared by every board that names it in
 `devices/<board>/device.toml` `[kernel]`. It is described in one file,
 `platforms/<name>.toml`, and nowhere else:
 
-| Field | Meaning | apple-16k / apple-4k | armv7-a5 |
+| Field | Meaning | apple-16k / apple-4k | apple-armv7 |
 |---|---|---|---|
 | `arch` | `make ARCH=` | `arm64` | `arm` |
 | `image` | make target and payload file | `Image.gz` | `zImage` |
 | `dtbs` | where `make dtbs` leaves the boards' DTBs | `arch/arm64/boot/dts/apple` | `arch/arm/boot/dts/apple` |
 | `upstream` | lock of the base the series applies to | `kernel/upstream.lock` (v7.3-rc1) | `kernel/upstream-v6.12.lock` |
-| `series` | ordered patch layers | `kernel/series/<name>` | `kernel/series/armv7-a5` |
-| `config` | full config | `kernel/configs/<name>/config` | `kernel/configs/armv7-a5/config` |
-| `defconfig` | the same config in OrchardLinux/linux | `orchard_apple16k_defconfig`, … | `orchard_armv7a5_defconfig` |
-| `branch` | its branch in OrchardLinux/linux | `main` | `a5` |
+| `series` | ordered patch layers | `kernel/series/<name>` | `kernel/series/apple-armv7` |
+| `config` | full config | `kernel/configs/<name>/config` | `kernel/configs/apple-armv7/config` |
+| `defconfig` | the same config in OrchardLinux/linux | `orchard_apple16k_defconfig`, … | `orchard_applearmv7_defconfig` |
+| `branch` | its branch in OrchardLinux/linux | `main` | `armv7` |
 
 `kernel/series.py --platform NAME` prints the checked descriptor; `kernel/build`
 and orchard's kernel cache read it. A new platform is a new descriptor, not a
 script. The platform layer of installed systems goes into the one arm64 root,
-so it and its CI job cover only `arch = "arm64"` platforms; armv7-a5 builds
+so it and its CI job cover only `arch = "arm64"` platforms; apple-armv7 builds
 and caches, but has no platform layer until a root of its architecture exists.
 
 **Planned:** `loader`, the payload format of the platform: `m1n1` (m1n1 +

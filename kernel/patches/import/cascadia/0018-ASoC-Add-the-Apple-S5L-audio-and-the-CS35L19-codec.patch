@@ -10,7 +10,7 @@ Imported unchanged from Project Cascadia (https://github.com/rzxvx/Project-Casca
 
 Cascadia history of these files: rzxvx <rrzxznewid@gmail.com> (1 commit).
 
-[Orchard: imported for the armv7-a5 platform; see kernel/sources.toml]
+[Orchard: imported for the apple-armv7 platform; see kernel/sources.toml]
 ---
  sound/soc/apple/Kconfig     |  11 +
  sound/soc/apple/Makefile    |   3 +

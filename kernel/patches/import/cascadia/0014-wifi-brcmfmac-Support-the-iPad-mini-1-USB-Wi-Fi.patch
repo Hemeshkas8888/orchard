@@ -8,7 +8,7 @@ Imported unchanged from Project Cascadia (https://github.com/rzxvx/Project-Casca
 
 Cascadia history of these files: rzxvx <rrzxznewid@gmail.com> (9 commits).
 
-[Orchard: imported for the armv7-a5 platform; see kernel/sources.toml]
+[Orchard: imported for the apple-armv7 platform; see kernel/sources.toml]
 ---
  .../broadcom/brcm80211/brcmfmac/cfg80211.c    |  10 +-
  .../broadcom/brcm80211/brcmfmac/usb.c         | 165 +++++++++++++++++-

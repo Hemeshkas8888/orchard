@@ -17,7 +17,7 @@ methods = ["jailbreak-kdfu"]
 # The CLI consumes an owner-private boot manifest. Public launch assets await release integration.
 
 [kernel]
-platform = "armv7-a5"     # kernel/series/armv7-a5, kernel/configs/armv7-a5
+platform = "apple-armv7"  # kernel/series/apple-armv7, kernel/configs/apple-armv7
 dtb = "s5l8942x-p105"       # arch/arm/boot/dts/apple/<dtb>.dtb
 
 [firmware]
@@ -27,7 +27,7 @@ recipe = "firmware.json"
 install = false # NAND is disabled; RAM and NFS root only.
 status = "experimental"
 caveats = [
-  "Kernel: Project Cascadia's A5 port on Linux 6.12 (platform armv7-a5), not the shared v7.3 kernel.",
+  "Kernel: Project Cascadia's A5 port on Linux 6.12 (platform apple-armv7), not the shared v7.3 kernel.",
   "Not yet run on this stack. On a Cascadia-based build, shaynelegault saw display, touch, the Home button, typing, Wi-Fi association and a Bluetooth mouse working.",
 ]
 wifi = true # Association was verified through the native desktop password UI (Cascadia-based build).

@@ -205,7 +205,7 @@ for number, (subject, paths) in enumerate(((s, p) for s, p in grouped.items() if
             f'The S5L8940X drivers here are Cascadia ports of Corellium\'s Project Sandcastle '
             f'({SANDCASTLE}, sandcastle-5.4, GPL-2.0); their copyright headers name Corellium '
             'and the drivers they were based on.', 72, break_long_words=False, break_on_hyphens=False)
-    body += ['', '[Orchard: imported for the armv7-a5 platform; see kernel/sources.toml]']
+    body += ['', '[Orchard: imported for the apple-armv7 platform; see kernel/sources.toml]']
     for path in paths:
         mode, kind_, sha, _ = (lgit('ls-tree', assembled, '--', path) + '\t').split(None, 3)
         lgit('update-index', '--add', '--cacheinfo', f'{mode},{sha},{path}')

@@ -9,7 +9,7 @@ Imported unchanged from Project Cascadia (https://github.com/rzxvx/Project-Casca
 
 Cascadia history of these files: rzxvx <rrzxznewid@gmail.com> (16 commits).
 
-[Orchard: imported for the armv7-a5 platform; see kernel/sources.toml]
+[Orchard: imported for the apple-armv7 platform; see kernel/sources.toml]
 ---
  drivers/phy/Kconfig              |   8 +
  drivers/phy/Makefile             |   1 +

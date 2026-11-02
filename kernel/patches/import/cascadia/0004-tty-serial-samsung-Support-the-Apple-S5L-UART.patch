@@ -8,7 +8,7 @@ Imported unchanged from Project Cascadia (https://github.com/rzxvx/Project-Casca
 
 Cascadia history of these files: rzxvx <rrzxznewid@gmail.com> (2 commits).
 
-[Orchard: imported for the armv7-a5 platform; see kernel/sources.toml]
+[Orchard: imported for the apple-armv7 platform; see kernel/sources.toml]
 ---
  drivers/tty/serial/Kconfig       |  2 +-
  drivers/tty/serial/samsung_tty.c | 44 +++++++++++++++++++++++++++++++-

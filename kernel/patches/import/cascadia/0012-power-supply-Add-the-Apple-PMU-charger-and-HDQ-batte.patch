@@ -11,7 +11,7 @@ Imported unchanged from Project Cascadia (https://github.com/rzxvx/Project-Casca
 Cascadia history of these files: rzxvx <rrzxznewid@gmail.com> (4 commits);
   liquidmetal-Hg <liquidmetal-Hg@users.noreply.github.com> (0a4002d)
 
-[Orchard: imported for the armv7-a5 platform; see kernel/sources.toml]
+[Orchard: imported for the apple-armv7 platform; see kernel/sources.toml]
 ---
  drivers/power/supply/Kconfig             |  16 +
  drivers/power/supply/Makefile            |   2 +

@@ -11,7 +11,7 @@ Imported unchanged from Project Cascadia (https://github.com/rzxvx/Project-Casca
 Cascadia history of these files: rzxvx <rrzxznewid@gmail.com> (10 commits);
   K <k@Ks-MacBook-Pro-4.local> (3dc80cf)
 
-[Orchard: imported for the armv7-a5 platform; see kernel/sources.toml]
+[Orchard: imported for the apple-armv7 platform; see kernel/sources.toml]
 ---
  .../interrupt-controller/apple,aic1.yaml      |   67 ++
  drivers/irqchip/Kconfig                       |   13 +

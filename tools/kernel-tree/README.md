@@ -33,7 +33,7 @@ orchard python tools/kernel-tree/regenerate --linux ../linux --m1n1 ../m1n1 [ORC
 ```
 
 Every platform descriptor names its branch in OrchardLinux/linux (`main` for
-apple-16k and apple-4k, `a5` for armv7-a5). For each branch it applies that
+apple-16k and apple-4k, `armv7` for apple-armv7). For each branch it applies that
 series onto its upstream base (fetched if missing) in build order, one commit
 per patch and one merge per patch directory, adds the platforms' defconfigs
 (checked to reproduce `kernel/configs`), and moves the branch; m1n1 `main`

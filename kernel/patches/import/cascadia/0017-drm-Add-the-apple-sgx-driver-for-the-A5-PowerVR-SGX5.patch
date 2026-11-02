@@ -16,7 +16,7 @@ Imported unchanged from Project Cascadia (https://github.com/rzxvx/Project-Casca
 Cascadia history of these files: rzxvx <rrzxznewid@gmail.com> (23 commits);
   Claude <noreply@anthropic.com> (5a7c341, 196c058, e086f6f)
 
-[Orchard: imported for the armv7-a5 platform; see kernel/sources.toml]
+[Orchard: imported for the apple-armv7 platform; see kernel/sources.toml]
 ---
  drivers/gpu/drm/Kconfig                   |    2 +
  drivers/gpu/drm/Makefile                  |    1 +

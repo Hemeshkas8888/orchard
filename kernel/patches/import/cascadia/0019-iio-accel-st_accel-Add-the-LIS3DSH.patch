@@ -8,7 +8,7 @@ Imported unchanged from Project Cascadia (https://github.com/rzxvx/Project-Casca
 
 Cascadia history of these files: rzxvx <rrzxznewid@gmail.com> (1 commit).
 
-[Orchard: imported for the armv7-a5 platform; see kernel/sources.toml]
+[Orchard: imported for the apple-armv7 platform; see kernel/sources.toml]
 ---
  drivers/iio/accel/Kconfig         |  2 +-
  drivers/iio/accel/st_accel.h      |  1 +

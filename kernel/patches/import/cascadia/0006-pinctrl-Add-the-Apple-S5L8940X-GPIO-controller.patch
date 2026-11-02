@@ -15,7 +15,7 @@ Sandcastle (https://github.com/corellium/linux-sandcastle,
 sandcastle-5.4, GPL-2.0); their copyright headers name Corellium and the
 drivers they were based on.
 
-[Orchard: imported for the armv7-a5 platform; see kernel/sources.toml]
+[Orchard: imported for the apple-armv7 platform; see kernel/sources.toml]
 ---
  drivers/pinctrl/Kconfig                       |   7 +
  drivers/pinctrl/Makefile                      |   1 +
