@@ -98,6 +98,22 @@ and Cascadia's NAND driver is read-only by construction.
   boot gets it over the m1n1 proxy from the launcher (to verify: earlier
   attempts at injecting it failed). Distribution m1n1 builds go away.
 
+## Build environment (planned)
+
+On macOS every build runs in the Podman VM, and `orchard setup` creates it
+with Podman's defaults (`podman machine init`): 4 CPUs and 4 GB on a
+14-core, 48 GB Mac, so one kernel build starved every other. It was raised
+to 10 CPUs and 16 GB by hand (November 2026). Instead:
+
+- `orchard setup` creates the VM with explicit resources derived from the
+  host (most of its cores, a good share of its memory, a disk large enough
+  for a kernel tree, a root and the builder images), and says what it chose;
+- `orchard doctor` reports the VM against the host and warns when the VM is
+  the bottleneck;
+- the values are a visible, adjustable setting, not a default in a script;
+- builds that share the VM take a job count (`ORCHARD_KERNEL_JOBS`) so a
+  second build does not take every core.
+
 ## Build caching (planned, last)
 
 - Cache keys follow what determines the output (source tree, config,
