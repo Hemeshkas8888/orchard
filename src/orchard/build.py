@@ -212,23 +212,29 @@ _HELD_LOCKS = set()
 
 
 @contextmanager
-def component_lock(cache):
-    """Exclusive use of a component cache; waits while another process builds.
+def component_lock(cache, *, exclusive=False):
+    """Use of a component cache.
 
-    The waiting build then finds whatever the other one produced already
-    cached. Taking the lock again in the same process would deadlock on
-    flock, so that is refused as a programming error instead.
+    Builds and launches share it, so they run side by side: a launch never
+    waits for an unrelated build. What removes entries (orchard cache) takes
+    it exclusively and waits until no build uses the cache. Two processes
+    never build the same entry at once: cached_component locks that entry.
+    Taking the lock again in the same process is refused as a programming
+    error, since an exclusive request would deadlock on flock.
     """
     cache.mkdir(parents=True, exist_ok=True)
     key = (cache / '.lock').resolve()
     if key in _HELD_LOCKS:
         raise ValueError(f'{cache} is already locked by this build')
+    mode = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
     with key.open('a') as lock:
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(lock, mode | fcntl.LOCK_NB)
         except BlockingIOError:
-            print(f'Waiting for another Orchard build to finish with {cache} ...', file=sys.stderr, flush=True)
-            fcntl.flock(lock, fcntl.LOCK_EX)
+            print(f'Waiting for running Orchard builds to finish with {cache} ...' if exclusive else
+                  f'Waiting for another Orchard process to finish changing {cache} ...',
+                  file=sys.stderr, flush=True)
+            fcntl.flock(lock, mode)
         _HELD_LOCKS.add(key)
         try:
             yield
@@ -305,25 +311,49 @@ def cached_component(cache, name, key, produce):
     """Immutable component directories, checked before reuse and publication.
     Call under component_lock when building into the same cache. A key made by
     keyed() also records its inputs, so later misses can say what changed.
+    One process builds an entry at a time; another one that wants the same
+    entry waits for it and reuses it.
     """
     parent = cache / name
     parent.mkdir(parents=True, exist_ok=True)
     initial_key = key()
-    inputs = getattr(key, 'inputs', None)
     target = parent / initial_key
     if target.exists():
-        records = json.loads((target / 'component.json').read_text())
-        actual = {str(p.relative_to(target)) for p in target.rglob('*')
-                  if p.is_file() and p != target / 'component.json'}
-        if actual != set(records):
-            raise ValueError(f'Cached component inventory changed: {target}; remove it and rebuild')
-        for relative, expected in records.items():
-            path = target / relative
-            if path.is_symlink() or digest(path) != expected:
-                raise ValueError(f'Cached component changed: {path}; remove that component and rebuild')
-        os.utime(target)  # last use, which `orchard cache --prune` keeps by
-        print(f'Reusing {name}: {target}', flush=True)
-        return target
+        return _reuse(name, target)
+    locks = cache / '.locks'
+    locks.mkdir(exist_ok=True)
+    with (locks / f'{name}-{initial_key}').open('a') as entry:
+        try:
+            fcntl.flock(entry, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(f'Waiting for another build of {name} ...', file=sys.stderr, flush=True)
+            fcntl.flock(entry, fcntl.LOCK_EX)
+        try:
+            if target.exists():
+                return _reuse(name, target)
+            return _build(cache, parent, name, key, initial_key, target, produce)
+        finally:
+            fcntl.flock(entry, fcntl.LOCK_UN)
+
+
+def _reuse(name, target):
+    """A published entry, checked file by file before use."""
+    records = json.loads((target / 'component.json').read_text())
+    actual = {str(p.relative_to(target)) for p in target.rglob('*')
+              if p.is_file() and p != target / 'component.json'}
+    if actual != set(records):
+        raise ValueError(f'Cached component inventory changed: {target}; remove it and rebuild')
+    for relative, expected in records.items():
+        path = target / relative
+        if path.is_symlink() or digest(path) != expected:
+            raise ValueError(f'Cached component changed: {path}; remove that component and rebuild')
+    os.utime(target)  # last use, which `orchard cache --prune` keeps by
+    print(f'Reusing {name}: {target}', flush=True)
+    return target
+
+
+def _build(cache, parent, name, key, initial_key, target, produce):
+    inputs = getattr(key, 'inputs', None)
     print(f'Building {name} (cache miss): {target}', flush=True)
     if inputs is not None:
         reason = explain_miss(parent, inputs)

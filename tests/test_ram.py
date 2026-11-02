@@ -606,7 +606,7 @@ class RamTests(unittest.TestCase):
             with build.component_lock(cache):
                 waited = time.monotonic() - started
         self.assertGreater(waited, 0.5)
-        self.assertIn('Waiting for another Orchard build', stderr.getvalue())
+        self.assertIn('Waiting for another Orchard process to finish changing', stderr.getvalue())
 
 
 if __name__ == '__main__':
