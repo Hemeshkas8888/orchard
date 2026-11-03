@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Martin=20Pu=C5=A1k=C3=A1=C4=8D?= <martin@icebear.sk>
+Date: Tue, 3 Nov 2026 15:21:06 +0100
+Subject: [PATCH] Input: apple_z2: Accept one-byte-late J81 runtime headers
+
+J81 sometimes returns E1 at offset one in a 16-byte interrupt response. Validate its available low checksum byte and use the shifted payload length without adding SPI clocks. A 20-second hardware capture advanced from one 10-ms contact per second to more than 2,000 position updates and multi-second contacts.
+
+Assisted-by: LLM
+---
+ drivers/input/touchscreen/apple_z2.c | 19 +++++++++++++++++--
+ 1 file changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/input/touchscreen/apple_z2.c b/drivers/input/touchscreen/apple_z2.c
+index b74eed9c7..018ec6ea5 100644
+--- a/drivers/input/touchscreen/apple_z2.c
++++ b/drivers/input/touchscreen/apple_z2.c
+@@ -852,6 +852,7 @@ static int apple_z2_read_packet(struct apple_z2 *z2)
+ 	bool strict_counter;
+ 	bool resynced = false;
+ 	int error;
++	int i;
+ 	size_t pkt_len;
+ 	size_t wire_len;
+ 	u16 payload_len;
+@@ -885,8 +886,22 @@ static int apple_z2_read_packet(struct apple_z2 *z2)
+ 	 */
+ 	if (apple_z2_is_j71t(z2)) {
+ 		if ((z2->rx_buf[0] & 0xf0) != 0xe0 ||
+-		    !apple_z2_z2_checksum_valid(z2->rx_buf, APPLE_Z2_CMD_SIZE))
+-			return -EBADMSG;
++		    !apple_z2_z2_checksum_valid(z2->rx_buf, APPLE_Z2_CMD_SIZE)) {
++			u8 checksum = 0;
++
++			/* J81 can return E1 one byte late, leaving only the low checksum byte. */
++			if (!of_device_is_compatible(z2->spidev->dev.of_node,
++						     "apple,j81-touchscreen") ||
++			    z2->rx_buf[0] > 1 ||
++			    z2->rx_buf[1] != APPLE_Z2_REPLY_INTERRUPT_DATA)
++				return -EBADMSG;
++			for (i = 1; i < APPLE_Z2_CMD_SIZE - 1; i++)
++				checksum += z2->rx_buf[i];
++			if (checksum != z2->rx_buf[APPLE_Z2_CMD_SIZE - 1])
++				return -EBADMSG;
++			payload_len = get_unaligned_le16(z2->rx_buf + 2);
++			goto data_phase;
++		}
+ 	} else if (z2->rx_buf[0] != APPLE_Z2_REPLY_INTERRUPT_DATA) {
+ 		return 0;
+ 	}
