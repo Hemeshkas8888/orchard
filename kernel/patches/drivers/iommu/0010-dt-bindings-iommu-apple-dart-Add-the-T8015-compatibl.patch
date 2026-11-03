@@ -8,6 +8,7 @@ S8000 and T8010, but the fallback enum does not list a T8015 compatible.
 Add it so the SoC can use the existing driver and quirk data.
 
 Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Assisted-by: LLM
 ---
  Documentation/devicetree/bindings/iommu/apple,dart.yaml | 1 +
  1 file changed, 1 insertion(+)
@@ -24,6 +25,3 @@ index 95f4843..df72722 100644
            - const: apple,s5l8960x-dart
  
    reg:
--- 
-2.56.0
-

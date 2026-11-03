@@ -13,16 +13,18 @@ as bus 1 and its requester ID is 0x100. The iommu-map entry follows that,
 with a 0xff00 mask so every function of the port is mapped.
 
 The port is active only once the controller is enabled on the d221 board,
-with dart-apcie3. The endpoint device node is left to the power-control
-patch that follows; the BCM4357 enumerates as 14e4:440a.
+with dart-apcie3. The port is labelled port03 so the board file can add
+the endpoint under it, which the power-control patch that follows does; the BCM4357 enumerates as 14e4:440a.
 
+[Orchard: labelled the root port port03 for the board's endpoint node]
 Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Assisted-by: LLM
 ---
  arch/arm64/boot/dts/apple/t8015-x.dtsi | 26 ++++++++++++++++++++++++++
  1 file changed, 26 insertions(+)
 
 diff --git a/arch/arm64/boot/dts/apple/t8015-x.dtsi b/arch/arm64/boot/dts/apple/t8015-x.dtsi
-index 41134ed..2318d58 100644
+index 41134ed..21abe9e 100644
 --- a/arch/arm64/boot/dts/apple/t8015-x.dtsi
 +++ b/arch/arm64/boot/dts/apple/t8015-x.dtsi
 @@ -11,3 +11,29 @@
@@ -36,7 +38,7 @@ index 41134ed..2318d58 100644
 +	pinctrl-0 = <&wifi_clkreq>;
 +	pinctrl-names = "default";
 +
-+	pci@3,0 {
++	port03: pci@3,0 {
 +		device_type = "pci";
 +		reg = <0x1800 0x0 0x0 0x0 0x0>;
 +		bus-range = <1 1>;
@@ -55,6 +57,3 @@ index 41134ed..2318d58 100644
 +		pinmux = <APPLE_PINMUX(163, 1)>;
 +	};
 +};
--- 
-2.56.0
-

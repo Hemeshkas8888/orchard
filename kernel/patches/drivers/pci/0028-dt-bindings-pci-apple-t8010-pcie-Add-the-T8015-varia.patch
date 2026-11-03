@@ -15,6 +15,7 @@ the T8010 branch keeps its nine-register and five-interrupt limits and
 the derivative boards still match it.
 
 Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Assisted-by: LLM
 ---
  .../bindings/pci/apple,t8010-pcie.yaml        | 74 ++++++++++++++++---
  1 file changed, 63 insertions(+), 11 deletions(-)
@@ -146,6 +147,3 @@ index 83db67f..e70f009 100644
      minItems: 4
      maxItems: 5
  
--- 
-2.56.0
-

@@ -26,13 +26,16 @@ programs no NVMMU for it.
 Tested on a d221 (iPhone X GSM): the link trains to L0 (LTSSM 0x11) and
 the BCM4357 (14e4:440a) enumerates at 5.0 GT/s x1.
 
+[Orchard: dropped an unrelated change to the S8003 default link speed and
+ moved the genpd teardown guard to its own patch; fixed a format specifier]
 Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Assisted-by: LLM
 ---
- drivers/pci/controller/pcie-apple-h9p.c | 411 +++++++++++++++++++++++++++++++-
- 1 file changed, 408 insertions(+), 3 deletions(-)
+ drivers/pci/controller/pcie-apple-h9p.c | 406 +++++++++++++++++++++++-
+ 1 file changed, 404 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/pci/controller/pcie-apple-h9p.c b/drivers/pci/controller/pcie-apple-h9p.c
-index e522379..cc6f717 100644
+index 39eb0f7..9917844 100644
 --- a/drivers/pci/controller/pcie-apple-h9p.c
 +++ b/drivers/pci/controller/pcie-apple-h9p.c
 @@ -1,7 +1,7 @@
@@ -195,17 +198,7 @@ index e522379..cc6f717 100644
  struct apple_h9p_tunables {
  	const struct apple_h9p_tunable *regs;
  	unsigned int count;
-@@ -907,6 +1043,9 @@ static void apple_h9p_pcie_detach_genpd(struct apple_h9p_pcie *pcie)
- {
- 	int i;
- 
-+	if (!pcie->pd_dev || !pcie->pd_link)
-+		return;
-+
- 	for (i = pcie->pd_count - 1; i >= 0; i--) {
- 		if (pcie->pd_link[i])
- 			device_link_del(pcie->pd_link[i]);
-@@ -2014,6 +2153,254 @@ static int apple_t8010_setup_common(struct apple_h9p_pcie *pcie)
+@@ -2017,6 +2153,254 @@ static int apple_t8010_setup_common(struct apple_h9p_pcie *pcie)
  	return 0;
  }
  
@@ -337,8 +330,8 @@ index e522379..cc6f717 100644
 +		usleep_range(1000, 2000);
 +	} while (ktime_before(ktime_get(), timeout));
 +
-+	dev_warn(pcie->dev, "port %u trained at %lu, target %u\n", port,
-+		 FIELD_GET(PCI_EXP_LNKSTA_CLS, lnksta), target);
++	dev_warn(pcie->dev, "port %u trained at %u, target %u\n", port,
++		 (u32)FIELD_GET(PCI_EXP_LNKSTA_CLS, lnksta), target);
 +}
 +
 +static int apple_t8015_setup_port(struct apple_h9p_pcie *pcie, unsigned int port,
@@ -460,16 +453,7 @@ index e522379..cc6f717 100644
  /* Read-modify-write every entry, as iOS does, even when it already matches. */
  static void apple_t7000_write_tunables(void __iomem *base,
  				       const struct apple_h9p_tunable *tunables,
-@@ -2434,7 +2821,7 @@ static int apple_s8003_start_link(struct apple_h9p_pcie *pcie,
- 	void __iomem *pb = pcie->base_port[port];
- 	struct device *dev = pcie->dev;
- 	u32 lanes = apple_s8003_lanes(pcie, port);
--	u32 speed = pcie->max_link_speed[port] ?: H9P_LINK_SPEED_2_5GT;
-+	u32 speed = pcie->max_link_speed[port] ?: pcie->hw->default_link_speed;
- 	u32 val, lnkcap2;
- 	u64 cap;
- 	int ret;
-@@ -3221,6 +3608,23 @@ static const struct apple_h9p_hw apple_h9p_hw_j172 = {
+@@ -3224,6 +3608,23 @@ static const struct apple_h9p_hw apple_h9p_hw_j172 = {
  	.j172_bridge_quirk = true,
  };
  
@@ -493,7 +477,7 @@ index e522379..cc6f717 100644
  static const struct apple_h9p_hw apple_h9p_hw_s8003 = {
  	.parse = apple_s8003_parse,
  	.setup_common = apple_s8003_setup_common,
-@@ -3243,6 +3647,7 @@ static const struct apple_h9p_hw apple_h9p_hw_s8003 = {
+@@ -3246,6 +3647,7 @@ static const struct apple_h9p_hw apple_h9p_hw_s8003 = {
  static const struct of_device_id apple_h9p_pcie_of_match[] = {
  	{ .compatible = "apple,s8003-pcie", .data = &apple_h9p_hw_s8003 },
  	{ .compatible = "apple,j172-pcie", .data = &apple_h9p_hw_j172 },

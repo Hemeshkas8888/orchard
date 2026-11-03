@@ -16,6 +16,7 @@ They are disabled by default; the d221 board enables dart-apcie3 for the
 Wi-Fi.
 
 Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Assisted-by: LLM
 ---
  arch/arm64/boot/dts/apple/t8015.dtsi | 28 ++++++++++++++++++++++++++++
  1 file changed, 28 insertions(+)
@@ -59,6 +60,3 @@ index 85ab9bf..3ddce22 100644
  		nvme@259cc0000 {
  			compatible = "apple,t8015-nvme-ans2";
  			reg = <0x2 0x59cc0000 0x0 0x40000>,
--- 
-2.56.0
-

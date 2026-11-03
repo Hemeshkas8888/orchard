@@ -8,6 +8,7 @@ stabilization as the j172 BCM4355, so map its PCI ID to that data. This
 lets the endpoint node claim pci14e4,440a and still bind pci-pwrctrl.
 
 Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Assisted-by: LLM
 ---
  drivers/pci/pwrctrl/pci-pwrctrl-apple-wifi.c | 4 ++++
  1 file changed, 4 insertions(+)

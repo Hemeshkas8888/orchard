@@ -36,7 +36,7 @@ The ADT also carries the SoC tunables this controller needs:
 `apcie-common-tunables`, `apcie-phy-tunables`, and per-bridge
 `apcie-config-tunables` / `pcie-rc-tunables`. These are the A11-specific
 PHY/config register programs; they are not transcribed here, and the h9p
-driver's T8015 match-data arrives in the controller patch (0029).
+driver's T8015 match data arrives with this series' `PCI: apple-h9p: Add T8015 support` patch.
 
 ## Wi-Fi port (pci-bridge3)
 

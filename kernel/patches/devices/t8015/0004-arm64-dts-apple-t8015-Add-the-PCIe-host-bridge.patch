@@ -17,6 +17,7 @@ Describe the controller but leave it disabled by default; the d221 board
 enables it.
 
 Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Assisted-by: LLM
 ---
  arch/arm64/boot/dts/apple/t8015.dtsi | 50 ++++++++++++++++++++++++++++
  1 file changed, 50 insertions(+)
@@ -82,6 +83,3 @@ index 3ddce22..6f07e9a 100644
  	};
  
  	timer {
--- 
-2.56.0
-
