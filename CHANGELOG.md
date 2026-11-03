@@ -55,6 +55,13 @@ entry. The iPad 6 gets speakers and an accelerometer for screen rotation.
   works (`orchard-sleep` in the platform layer); distributions decide when to
   suspend. How to bring it up on another board: docs/bring-up/suspend.md.
 
+### Development
+
+- RAM payloads built in an orchard checkout take the static tools (busybox,
+  dropbear, Wi-Fi tools) from the newest nightly when their recipe matches,
+  checked against its SHA256SUMS, instead of compiling them;
+  `ORCHARD_PUBLISHED=off` builds them locally. (thisiscamk)
+
 ### Contributing
 
 - Pull requests are usually reworked to fit the tree before merging, with the
