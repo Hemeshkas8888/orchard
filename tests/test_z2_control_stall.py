@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-PATCH = ROOT / 'kernel/patches/drivers/input/0015-Input-apple_z2-Recover-control-only-runtime-stalls.patch'
+PATCH = ROOT / 'kernel/patches/drivers/input/0016-Input-apple_z2-Recover-control-only-runtime-stalls.patch'
 
 
 def postimage():
