@@ -351,7 +351,9 @@ checkout computes without a kernel tree. CI publishes the keys
 (`component-keys.json`, in `SHA256SUMS`); the bundle is checked against
 `SHA256SUMS` before use and cached (`kernel-published-PLATFORM`). Another
 key, no network or `ORCHARD_KERNEL=local`: it compiles as before. Builds in
-an orchard checkout (kernel work) always compile. The published kernel is
+an orchard checkout (kernel work) always compile their kernel; their static
+tools come from the nightly when the tool recipes match (orchard#58), and
+`ORCHARD_PUBLISHED=off` builds everything locally. The published kernel is
 CI's build of that kernel state; CI installs the toolchain natively, so it
 is not claimed to be byte-identical to a local compile.
 

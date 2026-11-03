@@ -67,6 +67,19 @@ class PublishedKernel(unittest.TestCase):
             self.assertEqual(self.kernel(), directory)
         self.assertEqual(self.fetched.count('apple-16k-components.tar.gz'), 1)
 
+    def test_explain_records_where_a_published_kernel_came_from(self):
+        from orchard import explain
+        explain.start()
+        with self.release():
+            self.kernel()
+        steps = explain.stop()
+        self.assertTrue(any('downloaded from orchard\'s nightly-20261103-0123456789ab' in step.get('note', '')
+                            for step in steps), steps)
+        explain.start()
+        with self.release():
+            self.kernel()  # reused: the note comes back from the entry
+        self.assertTrue(any('downloaded from' in step.get('note', '') for step in explain.stop()))
+
     def test_another_kernel_state_compiles(self):
         other = json.dumps({'schema': 1, 'platforms': {'apple-16k': {
             'key': '0' * 64, 'asset': 'apple-16k-components.tar.gz'}}}).encode()
@@ -108,7 +121,7 @@ class PublishedShared(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.cache = Path(temporary.name)
+        self.cache = Path(temporary.name).resolve()  # macOS: /var is /private/var
         environment = mock.patch.dict(os.environ)
         environment.start()
         self.addCleanup(environment.stop)

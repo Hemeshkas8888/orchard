@@ -125,6 +125,10 @@ def _published(cache, name, what, key, select, unpack, *, tag=TAG):
             return None
     def produce(stage):
         print(f'Using the {tag} {what}: its source key matches this checkout', flush=True)
+        # No command makes it: --explain (orchard.explain) says where it came from.
+        from . import explain
+        explain.note(f'{what}: downloaded from orchard\'s {tag} ({asset}, sha256 {checksum}), '
+                     f'published for source key {key}; ORCHARD_PUBLISHED=off builds it instead')
         from .http import open_url
         with tempfile.TemporaryDirectory(prefix='published-', dir=stage.parent) as temporary:
             download = Path(temporary) / asset
