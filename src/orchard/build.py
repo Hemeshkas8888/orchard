@@ -159,7 +159,10 @@ def recipe_entries(hardware, paths, *, ignore=('.work', '.git', '__pycache__')):
                 dirs[:] = sorted(d for d in dirs if d not in ignore)
                 files.extend(Path(directory) / name for name in sorted(names))
         for path in files:
-            entries[str(path.relative_to(hardware))] = f'{path.stat().st_mode & 0o777}:{digest(path)}'
+            # Git records only the executable bit, so the key does too: builders
+            # with different umasks then hash the same checkout the same way.
+            mode = 0o755 if path.stat().st_mode & 0o100 else 0o644
+            entries[str(path.relative_to(hardware))] = f'{mode}:{digest(path)}'
     return entries
 
 
