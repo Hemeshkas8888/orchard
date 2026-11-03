@@ -579,7 +579,8 @@ def install_layer(path, root, *, size, sha256, expanded_limit):
                     with os.fdopen(fd, 'wb') as output:
                         output.write(archive.extractfile(member).read())
                         os.fchown(output.fileno(), 0, 0)
-                        os.fchmod(output.fileno(), 0o644)
+                        # Scripts and generators stay executable; nothing else, never setuid.
+                        os.fchmod(output.fileno(), 0o755 if member.mode & 0o111 else 0o644)
                     count += 1
                 finally:
                     os.close(parent)
