@@ -81,8 +81,25 @@ poll of 360 s rarely collides; orchard's `30-orchard-battery-poll.conf` sets
 
 ## Enabling it in an installed system
 
-Whether a board can suspend is device data (`[features] suspend`), not a
-distribution's choice. The mechanism that turns that state into the
-installed system's sleep configuration is not decided yet; until it is,
-distributions keep suspend off (omarchy-a: `AllowSuspend=no`, Power key
-ignored).
+Whether a board can suspend is device data, not a distribution's choice:
+`[features] suspend` in the board's `device.toml`. orchard's platform layer
+turns it into the installed system's sleep configuration:
+
+- `usr/lib/orchard/suspend-boards` lists the device-tree compatibles of the
+  platform's boards whose suspend is `working`, generated when the layer is
+  built (`orchard.image.platform`).
+- At boot, `orchard-sleep.service` (pulled in by
+  `orchard-sleep-generator`) runs `usr/lib/orchard/orchard-sleep`, which
+  compares `/proc/device-tree/compatible` with that list and writes
+  `/run/systemd/sleep.conf.d/50-orchard-board.conf` with `AllowSuspend=yes`
+  or `AllowSuspend=no`. Every board that is not `working`, `untested` ones
+  included, cannot be put to sleep by accident.
+
+A new device state arrives with the next platform layer; nothing is
+reinstalled. Distributions keep the policy: when to suspend (Power key,
+idle) and locking first. They must not set `AllowSuspend` themselves; a
+drop-in that sorts after `50-orchard-board.conf` would override the board's
+decision. omarchy-a asks logind (`CanSuspend`) before it suspends.
+
+To enable a board: prove it as above, set `suspend = "working"`, and the
+next release allows it.
