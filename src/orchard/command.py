@@ -106,6 +106,9 @@ def main():
         from orchard.sources import cache_root as build_cache
         check_state()
         check_state(build_cache())
+        if args.action == 'build' or (args.action == 'run' and not args.no_build):
+            from orchard.cache import check_free
+            check_free(build_cache(), args.directory)
         if args.action in ('build', 'run'):
             from orchard import distro
             root = distro.find(args.directory)
