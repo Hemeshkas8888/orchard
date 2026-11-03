@@ -92,7 +92,9 @@ and Cascadia's NAND driver is read-only by construction.
 **Done:** `--kernel-tree PATH` builds a kernel tree of your own (a branch of
 OrchardLinux/linux) with its tree's defconfig instead of orchard's patched
 tree, cached apart from orchard's kernels (`kernel-tree-*`) and recorded in
-`build.json`. Kernel work happens on such a branch; `export.py` turns it into
+`build.json`. It builds inside the tree, in `.orchard-out/PLATFORM` (which
+orchard adds to the tree's `.git/info/exclude`): the build output lives and
+goes with its tree instead of piling up in orchard's cache. Kernel work happens on such a branch; `export.py` turns it into
 patch files at the end. It takes RAM payloads only, until distributions are
 projects like any other (below).
 
