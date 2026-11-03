@@ -413,3 +413,31 @@ into drivers.
   minimal-linux additionally builds armv7 (Alpine, also Cascadia's base) as
   the root for platforms without an arm64 root; an armv7 Omarchy (Arch Linux
   ARM `armv7h`, software rendering) stays a separate, later track.
+
+## Later
+
+Ideas carried over from an earlier architecture plan (October 2026), not yet
+designed in detail:
+
+- **Deploy as an update to a running system.** `orchard deploy` to an iPad
+  already running Linux, without DFU or recovery: transfer only what
+  changed, stage a new system generation beside the active one, keep
+  device-local firmware, identity and user data, switch the boot selection
+  only after staging and verification, and keep the previous generation for
+  rollback. Transfer, activation and reboot stay separate steps. A
+  non-transactional `--live` mode for desktop iteration updates a bounded set
+  of owned files and restarts services, in seconds. Today there are only
+  `orchard push/pull/exec` for RAM sessions and a full install.
+- **Capability levels instead of one install flag.** A board is observed,
+  bootable, storage-capable, installable or desktop-qualified, and what
+  orchard permits (installing above all) follows what has been demonstrated;
+  today `device.toml` has `install = true/false` plus features and caveats.
+  Unknown hardware gets bounded observation, never a speculative install.
+- **The simulator as a target of the same workflow** (`--target simulator`):
+  the same userspace and packaging as the devices with a VM kernel and
+  virtual peripherals, so contributors without Apple hardware can work on
+  the desktop and on update logic. It does not validate drivers, touch,
+  charging or suspend.
+- **The recovery not sealed to one root.** A distribution's recovery is
+  still built against its root's exact receipt (`--root-receipt`), so every
+  root update rebuilds it.
