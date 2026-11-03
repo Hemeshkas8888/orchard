@@ -1,9 +1,20 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Martin=20Pu=C5=A1k=C3=A1=C4=8D?= <martin@icebear.sk>
 Date: Tue, 3 Nov 2026 13:12:41 +0100
-Subject: [PATCH] spi: apple: bound T7000 byte-wide PIO transfers
+Subject: [PATCH] spi: apple: Bound T7000 byte-wide PIO transfers
 
-The generic transfer path stalls after 32 bytes on J81. Use the bounded legacy FIFO feed with the T7000 start order: set both counts before RUN, clear legacy status, then select PIO mode and prime TX. Drain RX even for transmit-only transfers. Keep the S5L controller runtime-active across messages. Preserve the existing 16-bit path.
+The generic transfer path stalls after 32 bytes on J81 (iPad Air 2),
+so its touch firmware upload never completes. Use the bounded
+legacy FIFO feed for T7000 byte-wide transfers, with the T7000 start
+order: set both counts before RUN, clear the legacy status, then select
+PIO mode and prime the TX FIFO. Drain RX even for transmit-only
+transfers. Keep the controller runtime-active across messages, as S8000
+already does. 16-bit transfers keep the existing path, and S8000 keeps
+its register sequence; the new steps are selected by the T7000 match
+data (spi_v1).
+
+This also changes the byte-wide path of the T7000 iPhone 6 (n61), whose
+touch works on the previous path; it has not been re-tested there.
 
 Assisted-by: LLM
 ---
