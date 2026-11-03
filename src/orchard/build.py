@@ -6,7 +6,6 @@ policy or device access. The hardware/CLI ownership boundary remains provisional
 from contextlib import contextmanager
 import fcntl
 import hashlib
-import inspect
 import json
 import os
 import re
@@ -19,9 +18,14 @@ import tempfile
 
 import tomllib
 
-from . import sources, kernel as kernels
+from . import explain, sources, kernel as kernels
 
-_BASE_PRODUCER = kernels.build_base
+# The kernel producers' version: kernel/build, kernel/build-modules,
+# kernel/stage-modules.py, kernel/series.py, src/orchard/buildenv.py,
+# src/orchard/kernel_sdk.py and orchard.kernel's build functions. Their text is
+# not part of the cache key, so a refactor rebuilds nothing; raise this when a
+# change alters what they produce (files, contents or layout of a kernel bundle).
+KERNEL_PRODUCER = 2  # 2: only modules.order is staged, not stale .ko files
 
 
 PAYLOAD = 'payload.toml'
@@ -47,14 +51,20 @@ PAYLOAD_DEFAULTS = {'transport': True, 'modules': False, 'firmware': False}
 
 
 def payload_settings(directory):
-    """DIRECTORY/payload.toml: how this RAM payload is built. Optional.
+    """DIRECTORY/orchard.toml's [payload] (or the older payload.toml): how this RAM payload is built. Optional.
 
     transport = false leaves the USB session (network, SSH) out; modules = true
     stages the kernel's modules without loading them; firmware = true adds the
     booted board's firmware when `orchard run` boots it.
     """
-    path = Path(directory).expanduser().resolve() / PAYLOAD
-    settings = _toml(path, tuple(PAYLOAD_DEFAULTS)) if path.exists() else {}
+    from . import project
+    kind, _, settings, path = project.read(Path(directory).expanduser().resolve())
+    if kind == 'release':
+        raise ValueError(f'{path} describes a distribution, not a RAM payload')
+    unknown = set(settings) - set(PAYLOAD_DEFAULTS)
+    if unknown:
+        raise ValueError(f'{path}: unknown settings {", ".join(sorted(unknown))}; '
+                         f'expected {", ".join(PAYLOAD_DEFAULTS)}')
     for name, value in settings.items():
         if not isinstance(value, bool):
             raise ValueError(f'{path}: {name} must be true or false')
@@ -64,14 +74,16 @@ def payload_settings(directory):
 def local_settings(directory):
     """The nearest orchard.local.toml from DIRECTORY up to its repository's root.
 
-    This checkout's own choices, never committed: device = "BOARD" and
-    orchard = "PATH" (the orchard checkout to use; read by the launcher).
+    This checkout's own choices, never committed: sticky defaults for
+    --device ("BOARD"), --platform ("PLATFORM" or "all") and --kernel-tree
+    ("PATH", relative to the file), and orchard = "PATH" (the orchard checkout
+    to use; read by the launcher).
     """
     directory = Path(directory).expanduser().resolve()
     for parent in (directory, *directory.parents):
         path = parent / LOCAL
         if path.exists():
-            return _toml(path, ('device', 'orchard')), path
+            return _toml(path, ('device', 'platform', 'orchard', 'kernel-tree')), path
         if (parent / '.git').exists():
             break
     return {}, None
@@ -93,6 +105,28 @@ def resolve_device(directory, device=None):
     return None
 
 
+def configured_platform(directory):
+    """This checkout's platform = "PLATFORM" or "all" (orchard.local.toml), or None."""
+    settings, path = local_settings(directory)
+    if 'platform' not in settings:
+        return None
+    if not isinstance(settings['platform'], str) or not _BOARD.fullmatch(settings['platform']):
+        raise ValueError(f'{path}: invalid platform name')
+    return settings['platform']
+
+
+def resolve_kernel_tree(directory, tree=None):
+    """--kernel-tree, else this checkout's kernel-tree (orchard.local.toml, relative to it); or None."""
+    if tree is not None:
+        return Path(tree).expanduser().resolve()
+    settings, path = local_settings(directory)
+    if 'kernel-tree' not in settings:
+        return None
+    if not isinstance(settings['kernel-tree'], str) or not settings['kernel-tree']:
+        raise ValueError(f'{path}: kernel-tree must be a path')
+    return (path.parent / Path(settings['kernel-tree']).expanduser()).resolve()
+
+
 def configured_device(directory):
     """The device chosen for DIRECTORY's checkout (orchard.local.toml), or None."""
     return resolve_device(directory)
@@ -109,6 +143,7 @@ def digest(path):
 def command(*argv, env=None):
     """Run a hardware recipe. Its Python is Orchard's own."""
     print('+', ' '.join(map(str, argv)), flush=True)
+    explain.command(argv)
     subprocess.run(list(map(str, argv)), check=True,
                    env={**(os.environ if env is None else env), 'ORCHARD_PYTHON': sys.executable})
 
@@ -151,26 +186,33 @@ def cache_root():
     return sources.cache_root()
 
 
-def kernel_base_inputs(hardware, device, cache):
-    """Same inputs before and after source checkout; external modules are separate.
+def kernel_base_inputs(hardware, device, cache, tree=None):
+    """What determines a platform's compiled kernel; the same before and after source checkout.
 
-    The base is per platform, so devices of one platform share it. Patches are
-    represented by the resulting source tree, so neither other platforms' patch
-    layers nor documentation next to the config select a new base.
+    The source tree (upstream base plus the platform's patch series), the
+    config, the descriptor's build fields, the toolchain image and the
+    producer version. Not the text of the build scripts (see KERNEL_PRODUCER),
+    and not descriptor fields that do not build anything (defconfig, branch,
+    description). The base is per platform; devices of one platform share it.
     """
     platform = kernels.layout(hardware, device)[0]
     described = kernels.descriptor(hardware, device)
-    recipes = recipe_entries(hardware, [
-        'platforms/' + platform + '.toml', described['upstream'], described['config'], described['series'],
-        'kernel/series.py', 'kernel/build', 'kernel/Containerfile', 'kernel/install-toolchain',
-        'kernel/stage-modules.py', 'src/orchard/buildenv.py',
-    ])
-    # Hash only the binary/SDK producer, not unrelated functions in kernel.py.
+    if tree is not None:
+        # A developer's tree: its content (its own defconfig included), not orchard's series or config.
+        return {
+            'platform': platform, 'source': 'kernel-tree',
+            'build': {key: described[key] for key in ('arch', 'image', 'dtbs', 'defconfig')},
+            'recipes': recipe_entries(hardware, ['kernel/Containerfile', 'kernel/install-toolchain']),
+            'producer': KERNEL_PRODUCER,
+            'tree': sources.working_tree(tree, force=False),
+            'mode': os.environ.get('ORCHARD_BUILD_NATIVE', '0') + ':' + os.environ.get('ORCHARD_BUILD_ENV_ID', ''),
+        }
     return {
         'platform': platform,
-        'recipes': recipes,
-        'producer': hashlib.sha256(inspect.getsource(_BASE_PRODUCER).encode()).hexdigest(),
-        'sdk': digest(Path(__file__).with_name('kernel_sdk.py')),
+        'build': {key: described[key] for key in ('arch', 'image', 'dtbs')},
+        'recipes': recipe_entries(hardware, [described['config'], 'kernel/Containerfile',
+                                             'kernel/install-toolchain']),
+        'producer': KERNEL_PRODUCER,
         'tree': kernels.source_tree(hardware, cache, device),
         'mode': os.environ.get('ORCHARD_BUILD_NATIVE', '0') + ':' + os.environ.get('ORCHARD_BUILD_ENV_ID', ''),
     }
@@ -187,9 +229,8 @@ def kernel_inputs(hardware, device, base_key):
     """
     platform, dtb = kernels.layout(hardware, device)
     return {
-        'base': base_key, 'platform': platform, 'dtb': dtb,
-        'recipes': recipe_entries(hardware, ['kernel/modules/' + device, 'kernel/build-modules',
-                                             'kernel/stage-modules.py']),
+        'base': base_key, 'platform': platform, 'dtb': dtb, 'producer': KERNEL_PRODUCER,
+        'recipes': recipe_entries(hardware, ['kernel/modules/' + device]),
     }
 
 
@@ -201,23 +242,29 @@ _HELD_LOCKS = set()
 
 
 @contextmanager
-def component_lock(cache):
-    """Exclusive use of a component cache; waits while another process builds.
+def component_lock(cache, *, exclusive=False):
+    """Use of a component cache.
 
-    The waiting build then finds whatever the other one produced already
-    cached. Taking the lock again in the same process would deadlock on
-    flock, so that is refused as a programming error instead.
+    Builds and launches share it, so they run side by side: a launch never
+    waits for an unrelated build. What removes entries (orchard cache) takes
+    it exclusively and waits until no build uses the cache. Two processes
+    never build the same entry at once: cached_component locks that entry.
+    Taking the lock again in the same process is refused as a programming
+    error, since an exclusive request would deadlock on flock.
     """
     cache.mkdir(parents=True, exist_ok=True)
     key = (cache / '.lock').resolve()
     if key in _HELD_LOCKS:
         raise ValueError(f'{cache} is already locked by this build')
+    mode = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
     with key.open('a') as lock:
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(lock, mode | fcntl.LOCK_NB)
         except BlockingIOError:
-            print(f'Waiting for another Orchard build to finish with {cache} ...', file=sys.stderr, flush=True)
-            fcntl.flock(lock, fcntl.LOCK_EX)
+            print(f'Waiting for running Orchard builds to finish with {cache} ...' if exclusive else
+                  f'Waiting for another Orchard process to finish changing {cache} ...',
+                  file=sys.stderr, flush=True)
+            fcntl.flock(lock, mode)
         _HELD_LOCKS.add(key)
         try:
             yield
@@ -294,25 +341,50 @@ def cached_component(cache, name, key, produce):
     """Immutable component directories, checked before reuse and publication.
     Call under component_lock when building into the same cache. A key made by
     keyed() also records its inputs, so later misses can say what changed.
+    One process builds an entry at a time; another one that wants the same
+    entry waits for it and reuses it.
     """
     parent = cache / name
     parent.mkdir(parents=True, exist_ok=True)
     initial_key = key()
-    inputs = getattr(key, 'inputs', None)
     target = parent / initial_key
     if target.exists():
-        records = json.loads((target / 'component.json').read_text())
-        actual = {str(p.relative_to(target)) for p in target.rglob('*')
-                  if p.is_file() and p != target / 'component.json'}
-        if actual != set(records):
-            raise ValueError(f'Cached component inventory changed: {target}; remove it and rebuild')
-        for relative, expected in records.items():
-            path = target / relative
-            if path.is_symlink() or digest(path) != expected:
-                raise ValueError(f'Cached component changed: {path}; remove that component and rebuild')
-        os.utime(target)  # last use, which `orchard cache --prune` keeps by
-        print(f'Reusing {name}: {target}', flush=True)
-        return target
+        return _reuse(name, target)
+    locks = cache / '.locks'
+    locks.mkdir(exist_ok=True)
+    with (locks / f'{name}-{initial_key}').open('a') as entry:
+        try:
+            fcntl.flock(entry, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(f'Waiting for another build of {name} ...', file=sys.stderr, flush=True)
+            fcntl.flock(entry, fcntl.LOCK_EX)
+        try:
+            if target.exists():
+                return _reuse(name, target)
+            return _build(cache, parent, name, key, initial_key, target, produce)
+        finally:
+            fcntl.flock(entry, fcntl.LOCK_UN)
+
+
+def _reuse(name, target):
+    """A published entry, checked file by file before use."""
+    records = json.loads((target / 'component.json').read_text())
+    actual = {str(p.relative_to(target)) for p in target.rglob('*')
+              if p.is_file() and p != target / 'component.json'}
+    if actual != set(records):
+        raise ValueError(f'Cached component inventory changed: {target}; remove it and rebuild')
+    for relative, expected in records.items():
+        path = target / relative
+        if path.is_symlink() or digest(path) != expected:
+            raise ValueError(f'Cached component changed: {path}; remove that component and rebuild')
+    os.utime(target)  # last use, which `orchard cache --prune` keeps by
+    print(f'Reusing {name}: {target}', flush=True)
+    explain.reused(name, target)
+    return target
+
+
+def _build(cache, parent, name, key, initial_key, target, produce):
+    inputs = getattr(key, 'inputs', None)
     print(f'Building {name} (cache miss): {target}', flush=True)
     if inputs is not None:
         reason = explain_miss(parent, inputs)
@@ -323,7 +395,8 @@ def cached_component(cache, name, key, produce):
     with tempfile.TemporaryDirectory(prefix='build-', dir=parent) as temporary:
         stage = Path(temporary) / 'component'
         stage.mkdir()
-        produce(stage)
+        with explain.producing(stage):
+            produce(stage)
         if inputs is not None:
             (stage / INPUTS_RECORD).write_text(json.dumps(inputs, indent=2, sort_keys=True) + '\n')
         records = {str(p.relative_to(stage)): digest(p) for p in sorted(stage.rglob('*')) if p.is_file()}
@@ -360,24 +433,38 @@ def _check_kernel_recipe(hardware, device):
     kernels.descriptor(hardware, device)
 
 
-def _prepare_kernel(hardware, cache, device):
-    """Resolve one coherent kernel/DTB/module bundle under the component lock."""
+def _prepare_kernel(hardware, cache, device, tree=None):
+    """Resolve one coherent kernel/DTB/module bundle under the component lock.
+
+    TREE: a developer's kernel tree, built as it is; its results are cached
+    apart from orchard's own kernels (kernel-tree-*), so they never displace them.
+    """
     components = cache / 'components-v2'
     platform = kernels.layout(hardware, device)[0]
-    base_key = keyed(lambda: kernel_base_inputs(hardware, device, cache))
+    prefix = 'kernel-tree-' if tree is not None else 'kernel-'
+    base_key = keyed(lambda: kernel_base_inputs(hardware, device, cache, tree))
+    described = kernels.descriptor(hardware, device)
+    if tree is None:
+        explain.note(f'kernel source: orchard\'s {platform} tree, its upstream lock plus kernel/series/{platform}, '
+                     f'prepared in its cache.\nStandalone: OrchardLinux/linux branch {described.get("branch", "main")} '
+                     f'regenerated from this orchard commit has the same content '
+                     f'(git rev-parse HEAD^{{tree}}: see kernel-base key-inputs.json "tree").')
+    else:
+        explain.note(f'kernel source: the tree {tree} as it is, with arch/{described["arch"]}/configs/'
+                     f'{described["defconfig"]}')
     def produce_base(stage):
-        with kernels.tree_lock(hardware, device):
-            kernels.build_base(hardware, cache, device, stage / 'kernel')
-    base = cached_component(components, 'kernel-base-' + platform, base_key, produce_base) / 'kernel'
+        with kernels.tree_lock(hardware, device, tree):
+            kernels.build_base(hardware, cache, device, stage / 'kernel', tree=tree)
+    base = cached_component(components, prefix + 'base-' + platform, base_key, produce_base) / 'kernel'
     def produce_kernel(stage):
-        with kernels.tree_lock(hardware, device):
-            kernels.build_device(hardware, cache, device, base, stage / 'kernel')
-    directory = cached_component(components, 'kernel-' + device,
+        with kernels.tree_lock(hardware, device, tree):
+            kernels.build_device(hardware, cache, device, base, stage / 'kernel', tree=tree)
+    directory = cached_component(components, prefix + device,
         keyed(lambda: kernel_inputs(hardware, device, base.parent.name)), produce_kernel)
     return directory / 'kernel'
 
 
-def prepare_kernel(hardware=None, cache=None, *, device):
+def prepare_kernel(hardware=None, cache=None, *, device, kernel_tree=None):
     """Build/reuse a coherent kernel, DTB and modules, without boot/tool producers.
 
     Defaults to the active hardware package and normal shared Orchard cache.
@@ -385,8 +472,9 @@ def prepare_kernel(hardware=None, cache=None, *, device):
     """
     hardware, cache = _build_context(hardware, cache, device)
     _check_kernel_recipe(hardware, device)
+    tree = kernels.check_tree(hardware, device, kernel_tree) if kernel_tree is not None else None
     with component_lock(cache):
-        return _prepare_kernel(hardware, cache, device)
+        return _prepare_kernel(hardware, cache, device, tree)
 
 
 def has_loader_patches(hardware):
@@ -396,6 +484,8 @@ def has_loader_patches(hardware):
 
 # What the static tools are built from; the rest of the recovery directory is
 # recovery runtime and doesn't change them.
+# What orchard's m1n1 (the quiet one every device boots) is built from.
+M1N1_INPUTS = ['boot/m1n1', 'boot/quiet/m1n1.patch', 'src/orchard/buildenv.py']
 TOOL_INPUTS = ['boot/initramfs/recovery/' + name for name in
                ('build-tools', 'build-tools-in-container', 'Containerfile',
                 'install-toolchain', 'upstream.lock')] + ['src/orchard/buildenv.py']
@@ -432,12 +522,18 @@ def _prepare_tools(hardware, components):
 
 def prepare_tools(hardware=None, cache=None, *, device):
     """The directory of static recovery tools for RAM images, built or reused."""
+    from . import published
     hardware, cache = _build_context(hardware, cache, device)
+    tools = published.tools(hardware, cache)
+    if tools is not None:
+        return tools
     with component_lock(cache):
         return _prepare_tools(hardware, cache / 'components-v2')
 
 
 RELEASES = 'https://github.com/OrchardLinux/orchard/releases/download'
+# What Pongo is built from; boot/quiet/m1n1.patch is m1n1's, not Pongo's.
+PONGO_RECIPE = ['boot/quiet/build-pongo.py', 'boot/quiet/pongo.patch']
 
 
 def released_pongo(hardware):
@@ -452,7 +548,7 @@ def released_pongo(hardware):
     if described.returncode:
         return None
     tag = described.stdout.strip()
-    if git('diff', '--quiet', tag, '--', 'boot/quiet').returncode:
+    if git('diff', '--quiet', tag, '--', *PONGO_RECIPE).returncode:
         return None
     from .http import open_url
     for sums in ('SHA256SUMS', 'launcher.SHA256SUMS'):  # releases before 0.2 list it with the launcher
@@ -484,21 +580,21 @@ def _prepare_pongo(hardware, components):
 
     def produce(stage):
         if sys.platform != 'darwin' or not shutil.which('xcrun'):
-            raise ValueError('Pongo\'s recipe (boot/quiet) differs from the latest release, and building it '
+            raise ValueError('Pongo\'s recipe (boot/quiet/build-pongo.py, pongo.patch) differs from the latest release, and building it '
                              'needs macOS with Xcode and the iPhoneOS SDK. Pass --pongo FILE to use another, '
                              'or build on a Mac.')
-        work = recipe_work(components, 'pongo', recipe_key(hardware, ['boot/quiet']))
+        work = recipe_work(components, 'pongo', recipe_key(hardware, PONGO_RECIPE))
         argv = [sys.executable, hardware / 'boot/quiet/build-pongo.py',
                 '--work-dir', work, '--output', stage / 'pongo.bin']
         if (work / 'source').exists():
             argv.append('--resume')
         command(*argv)
-    return cached_component(components, 'pongo', lambda: recipe_key(hardware, ['boot/quiet']), produce) / 'pongo.bin'
+    return cached_component(components, 'pongo', lambda: recipe_key(hardware, PONGO_RECIPE), produce) / 'pongo.bin'
 
 
 def _prepare_m1n1(hardware, components, device):
     def key():
-        return recipe_key(hardware, ['boot/m1n1', 'boot/quiet/m1n1.patch', 'src/orchard/buildenv.py'])
+        return recipe_key(hardware, M1N1_INPUTS)
 
     def produce(stage):
         # One tree per patch set: a changed series starts a fresh tree instead
@@ -517,7 +613,7 @@ def _prepare_m1n1(hardware, components, device):
 
 
 def prepare_components(hardware=None, cache=None, *, device, kernel=None,
-                       busybox=None, loader=None, pongo=None):
+                       busybox=None, loader=None, pongo=None, kernel_tree=None):
     """Build/reuse components shared by experiments and larger images.
 
     Explicit component paths bypass their producers. The returned paths are not
@@ -528,13 +624,16 @@ def prepare_components(hardware=None, cache=None, *, device, kernel=None,
     components = cache / 'components-v2'
     if kernel is None:
         _check_kernel_recipe(hardware, device)
+    if kernel is not None and kernel_tree is not None:
+        raise ValueError('Give a staged kernel (--kernel-dir) or a kernel tree (--kernel-tree), not both')
+    tree = kernels.check_tree(hardware, device, kernel_tree) if kernel_tree is not None else None
     if loader is None and not has_loader_patches(hardware):
         raise ValueError(f'Missing loader patches for {device}; add a loader recipe or supply --loader FILE')
     with component_lock(cache):
         if pongo is None:
             pongo = _prepare_pongo(hardware, components)
         if kernel is None:
-            kernel = _prepare_kernel(hardware, cache, device)
+            kernel = _prepare_kernel(hardware, cache, device, tree)
         if busybox is None:
             busybox = _prepare_tools(hardware, components) / 'busybox'
         if loader is None:
@@ -545,16 +644,22 @@ def prepare_components(hardware=None, cache=None, *, device, kernel=None,
 
 
 def prepare_shared(hardware=None, cache=None):
-    """Pongo and the static recovery tools, which every platform shares, built or reused.
+    """Pongo, orchard's m1n1 and the static recovery tools, which every platform shares, built or reused.
 
-    {'pongo': Path, 'tools': directory}; the tools directory holds busybox,
-    dropbear, dropbearkey, wpa_supplicant, wpa_cli and iw.
+    {'pongo': Path, 'loader': m1n1.bin, 'tools': directory}; the tools
+    directory holds busybox, dropbear, dropbearkey, wpa_supplicant, wpa_cli
+    and iw. A distribution's splash is data for this m1n1 (assemble.py --logo),
+    not a m1n1 of its own.
     """
+    from . import published
     hardware, cache = _build_context(hardware, cache, 'apple')
     components = cache / 'components-v2'
+    # The nightly's m1n1 and tools when built from the same recipes; built here otherwise.
+    loader, tools = published.m1n1(hardware, cache), published.tools(hardware, cache)
     with component_lock(cache):
         return {'pongo': _prepare_pongo(hardware, components).resolve(),
-                'tools': _prepare_tools(hardware, components).resolve()}
+                'loader': (loader or _prepare_m1n1(hardware, components, 'apple')).resolve(),
+                'tools': (tools or _prepare_tools(hardware, components)).resolve()}
 
 
 def prepare_loader(hardware=None, cache=None, *, device):

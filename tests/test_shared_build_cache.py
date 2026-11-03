@@ -48,7 +48,7 @@ class SharedBuildCacheTests(unittest.TestCase):
             self.overrides[name] = path
         self.calls = []
 
-    def produce(self, hardware, cache, device, output, base=None):
+    def produce(self, hardware, cache, device, output, base=None, tree=None):
         self.assertEqual(cache, self.cache)
         self.assertEqual(device, 'j71b')
         source = hardware / 'kernel/.work/apple/source'
@@ -81,7 +81,7 @@ class SharedBuildCacheTests(unittest.TestCase):
 
     def prepare(self, hardware):
         with patch.object(kernel, 'build_base', side_effect=self.produce), \
-                patch.object(kernel, 'build_device', side_effect=lambda hw, cache, device, base, out:
+                patch.object(kernel, 'build_device', side_effect=lambda hw, cache, device, base, out, tree=None:
                              self.produce(hw, cache, device, out, base)):
             return build.prepare_components(hardware, self.cache, device='j71b', **self.overrides)
 
@@ -108,7 +108,7 @@ class SharedBuildCacheTests(unittest.TestCase):
 
     def test_ram_build_reuses_kernel_only_build(self):
         with patch.object(kernel, 'build_base', side_effect=self.produce), \
-                patch.object(kernel, 'build_device', side_effect=lambda hw, cache, device, base, out:
+                patch.object(kernel, 'build_device', side_effect=lambda hw, cache, device, base, out, tree=None:
                              self.produce(hw, cache, device, out, base)):
             first = build.prepare_kernel(self.one, self.cache, device='j71b')
         second = self.prepare(self.two)

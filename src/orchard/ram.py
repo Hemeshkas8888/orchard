@@ -13,8 +13,10 @@ import struct
 import sys
 import tempfile
 
-from . import build
+from . import build, explain
 from .build import command, digest, recipe_key
+
+IMAGE = Path(__file__).resolve().parent / 'image'  # standalone scripts, run by path
 
 
 def check_busybox(path):
@@ -76,15 +78,16 @@ def assemble_ram(hardware, output, *, kernel, busybox, loader, pongo, init,
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
             target.chmod(Path(source).stat().st_mode & 0o777)
-        command(sys.executable, '-m', 'orchard.image.initramfs', '--root', root,
+        explain.note(f'root ({root}): orchard laid out BusyBox at bin/busybox, init, etc/hostname'
+                     f'{", the kernel modules" if modules else ""} and {len(files or {})} files '
+                     '(rootfs/ and the session helper); any directory of that shape works')
+        command(sys.executable, IMAGE / 'initramfs.py', '--root', root,
                 '--output', work / 'initramfs.cpio.gz')
-        profile = work / 'boot.json'
-        profile.write_text(json.dumps({'bootargs': 'chosen.bootargs=' + bootargs + '\n'}))
         dtbs = [kernel / 'dtbs' / (dtb + '.dtb') for dtb in boards.values()]
         for path in dtbs:
             if not path.is_file():
                 raise ValueError(f'Kernel bundle lacks {path.name}')
-        assemble(profile, loader, dtbs, kernel / 'Image.gz', work / 'initramfs.cpio.gz', work / 'linux.bin')
+        assemble(bootargs, loader, dtbs, kernel / 'Image.gz', work / 'initramfs.cpio.gz', work / 'linux.bin')
         if (work / 'linux.bin').stat().st_size > 128 * 1024 * 1024:
             raise ValueError('Payload exceeds the Pongo uploader limit (128 MiB)')
         shutil.copyfile(pongo, work / 'pongo.bin')
@@ -102,8 +105,8 @@ def assemble_ram(hardware, output, *, kernel, busybox, loader, pongo, init,
     return output
 
 
-def assemble(profile, loader, dtbs, kernel, initramfs, output):
-    command(sys.executable, '-m', 'orchard.image.assemble', '--manifest', profile, '--loader', loader,
+def assemble(bootargs, loader, dtbs, kernel, initramfs, output):
+    command(sys.executable, IMAGE / 'assemble.py', '--bootargs', bootargs, '--loader', loader,
             *(argument for dtb in dtbs for argument in ('--dtb', dtb)), '--kernel', kernel,
             '--initramfs', initramfs, '--output', output)
 
@@ -125,9 +128,45 @@ def boards_by_platform(hardware):
     return result
 
 
-def resolve_platform(directory, hardware, *, platform=None, device=None):
-    """--platform, else the platform of --device, orchard.local.toml or the attached board."""
+def resolve_platforms(directory, hardware, *, platforms=(), device=None, allow_all=True):
+    """The platforms to build: --platform (repeatable, or all), else --device,
+    else orchard.local.toml (platform, else device), else the attached board.
+
+    Returns a sorted list of platform names, or 'all'. A local build never
+    means every platform unless all is asked for.
+    """
     known = boards_by_platform(hardware)
+    listing = ', '.join(sorted(known))
+    chosen, source = list(platforms or ()), '--platform'
+    if not chosen and device is None:
+        configured = build.configured_platform(directory)
+        if configured is not None:
+            chosen, source = [configured], str(build.local_settings(directory)[1])
+            board = build.configured_device(directory)
+            if board is not None and configured in known and board not in known[configured]:
+                raise ValueError(f'{source}: device {board} is not a board of platform {configured}')
+    if chosen:
+        if 'all' in chosen:
+            if len(chosen) > 1 or not allow_all:
+                raise ValueError(f'{source}: all builds every platform; it combines with no other '
+                                 'and is for distribution builds' if allow_all else
+                                 f'{source}: a payload is built for one platform; name it')
+            return 'all'
+        unknown = sorted(set(chosen) - set(known))
+        if unknown:
+            raise ValueError(f'Unknown platform {", ".join(unknown)} ({source}); known: {listing}')
+        return sorted(set(chosen))
+    return [resolve_platform(directory, hardware, device=device)]
+
+
+def resolve_platform(directory, hardware, *, platform=None, device=None):
+    """One platform: --platform, else the platform of --device, orchard.local.toml or the attached board."""
+    known = boards_by_platform(hardware)
+    if platform is None and device is None:
+        selected = resolve_platforms(directory, hardware, allow_all=False) \
+            if build.configured_platform(directory) is not None else None
+        if selected is not None:
+            return selected[0]
     if platform is not None:
         if platform not in known:
             raise ValueError(f'Unknown platform {platform}; known: {", ".join(sorted(known))}')
@@ -147,15 +186,27 @@ def resolve_platform(directory, hardware, *, platform=None, device=None):
 
 
 def build_directory(directory, *, hardware=None, cache=None, kernel=None,
-                    busybox=None, loader=None, pongo=None, platform=None, device=None):
+                    busybox=None, loader=None, pongo=None, platform=None, device=None, kernel_tree=None):
     """Build DIRECTORY/init plus optional DIRECTORY/rootfs/ for every board of one platform.
 
-    The payload goes to DIRECTORY/out/PLATFORM/. Unless payload.toml says
+    The payload goes to DIRECTORY/out/PLATFORM/. Unless orchard.toml's [payload] says
     transport = false it also gets the USB session helper (network, SSH; see
     ram_session) for its /init to start. Firmware is never part of it: `orchard
     run` adds the booted board's (with_firmware).
     """
     directory = Path(directory).expanduser().resolve()
+    explain.start()
+    try:
+        output = _build_directory(directory, hardware=hardware, cache=cache, kernel=kernel, busybox=busybox,
+                                  loader=loader, pongo=pongo, platform=platform, device=device,
+                                  kernel_tree=kernel_tree)
+    finally:
+        steps = explain.stop()
+    (output / 'commands.sh').write_text(explain.script(steps, title=f'orchard build {directory} ({output.name})'))
+    return output
+
+
+def _build_directory(directory, *, hardware, cache, kernel, busybox, loader, pongo, platform, device, kernel_tree):
     settings = build.payload_settings(directory)
     if hardware is None:
         from .hardware import ROOT
@@ -182,18 +233,23 @@ def build_directory(directory, *, hardware=None, cache=None, kernel=None,
             raise ValueError(f'Symlinks in rootfs are not supported yet: {path}')
         if path.is_file():
             files[str(path.relative_to(overlay))] = path
+    from .published import TOOLS
     tools = build.prepare_tools(hardware, cache, device=representative)
     for tool in sorted(tools.iterdir()):
-        if tool.name != 'busybox' and tool.is_file():
+        if tool.name in TOOLS and tool.name != 'busybox' and tool.is_file():
             files.setdefault(TOOL_DESTINATIONS.get(tool.name, 'usr/bin') + '/' + tool.name, tool)
     if settings['transport']:
         from . import ram_session
         for destination, source in ram_session.payload_files().items():
             if destination in files:
-                raise ValueError(f'rootfs/ provides {destination}; set transport = false in payload.toml to supply your own')
+                raise ValueError(f'rootfs/ provides {destination}; set transport = false under [payload] in orchard.toml to supply your own')
             files[destination] = source
+    tree = build.resolve_kernel_tree(directory, kernel_tree) if kernel is None else None
+    if tree is not None:
+        print(f'Kernel from the tree {tree}', flush=True)
     components = build.prepare_components(hardware, cache, device=representative, kernel=kernel,
-                                          busybox=busybox, loader=loader, pongo=pongo)
+                                          busybox=busybox if busybox is not None else tools / 'busybox',
+                                          loader=loader, pongo=pongo, kernel_tree=tree)
     hostname = re.sub(r'[^A-Za-z0-9_-]', '-', directory.name).strip('-_')[:63] or 'orchard-ram'
     assemble_ram(hardware, output, **components, init=init, files=files, modules=settings['modules'],
                  hostname=hostname, platform=platform, boards=boards)
@@ -201,6 +257,7 @@ def build_directory(directory, *, hardware=None, cache=None, kernel=None,
     # Catch newly added/removed overlay files too, not only changes to old inputs.
     receipt['overlay'] = {'path': str(overlay), 'sha256': recipe_key(directory, ['rootfs'], ignore=())}
     receipt['firmware'] = settings['firmware']
+    receipt['kernel_tree'] = str(tree) if tree is not None else None
     (output / 'build.json').write_text(json.dumps(receipt, indent=2) + '\n')
     return output
 
@@ -243,11 +300,9 @@ def with_firmware(output, board, *, hardware=None, cache=None):
             for part in (output / 'initramfs.cpio.gz', work / 'firmware.cpio.gz'):
                 stream.write(part.read_bytes())
         assembly = receipt['assembly']
-        profile = work / 'boot.json'
-        profile.write_text(json.dumps({'bootargs': 'chosen.bootargs=' + assembly['bootargs'] + '\n'}))
         image = work / 'image'
         image.mkdir()
-        assemble(profile, Path(assembly['loader']), [Path(path) for path in assembly['dtbs']],
+        assemble(assembly['bootargs'], Path(assembly['loader']), [Path(path) for path in assembly['dtbs']],
                  Path(assembly['kernel']), combined, image / 'linux.bin')
         shutil.copyfile(output / 'pongo.bin', image / 'pongo.bin')
         layered = {**receipt, 'boards': [board], 'firmware': True,

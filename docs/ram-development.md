@@ -21,9 +21,11 @@ their boards. No repository and no per-person setting names a board. Distro-owne
 producers can use `orchard.build.configured_device(directory)`. Installation does
 not read it and still rejects incompatible devices.
 
-## payload.toml
+## orchard.toml
 
-An optional `payload.toml` beside `init` describes the payload itself, never its board:
+An optional `orchard.toml` beside `init` names the payload (`name = "..."`) and
+describes it under `[payload]`, never its board (the older `payload.toml` is
+still read, with a notice):
 
 - `transport = false` leaves the USB session helper (network, SSH) out;
 - `modules = true` stages the kernel's modules without loading them;
@@ -41,7 +43,7 @@ CLI's `rootfs/` input are currently rejected, not silently dereferenced.
 
 The CLI supplies BusyBox, the hardware's other static tools (Dropbear, and
 `wpa_supplicant`, `wpa_cli` and `iw` for Wi-Fi), the device kernel and boot
-framing, then writes artifacts to `DIRECTORY/out/PLATFORM/`; `payload.toml` decides
+framing, then writes artifacts to `DIRECTORY/out/PLATFORM/`; `orchard.toml` decides
 about modules and firmware (see above). Pongo is the latest release's when this
 checkout's Pongo recipe (`boot/quiet`) is unchanged since, so building needs no Xcode;
 a changed recipe is built on macOS. Component override flags: `--hardware`, `--cache`, `--kernel-dir`, `--busybox`, `--loader`, `--pongo`.
@@ -66,6 +68,48 @@ to explicitly authorize a non-interactive boot without the prompt. This skips
 only confirmation: payload verification, sole-device/identity checks, operation
 locking, refusal to reboot running Linux and the single-attempt policy remain.
 A custom `/init` owns device behavior; the host tool cannot infer its safety.
+
+## Assembling by hand
+
+`linux.bin` is m1n1's own payload format; orchard adds nothing to it. With a
+kernel bundle (`Image.gz`, DTBs), an initramfs and m1n1, from a published
+build or your own, assemble it without orchard:
+
+```sh
+python3 src/orchard/image/assemble.py --bootargs 'console=tty0 loglevel=7 rdinit=/init' \
+    --loader m1n1.bin --dtb t8010-j71b.dtb --kernel Image.gz \
+    --initramfs initramfs.cpio.gz --output linux.bin
+```
+
+The script uses only Python's standard library. The same bytes by hand:
+
+```sh
+{ cat m1n1.bin
+  cat logo.bin                    # optional, and only here: m1n1's custom logo
+  printf 'chosen.bootargs=%s\n' 'console=tty0 loglevel=7 rdinit=/init'
+  cat t8010-*.dtb                 # every DTB; m1n1 picks the one matching the device
+  cat Image.gz
+  printf 'm1n1_initramfs'
+  python3 -c 'import os,struct,sys; sys.stdout.buffer.write(struct.pack("<I", os.path.getsize("initramfs.cpio.gz")))'
+  cat initramfs.cpio.gz
+} > linux.bin
+```
+
+A logo is m1n1's custom logo payload: `m1n1_logo_256128`, then RGBA
+flattened on black, 256×256 and then 128×128 (`--logo`; m1n1 picks the size
+for the screen). m1n1 looks for it only directly after itself. To make one:
+
+```sh
+{ printf 'm1n1_logo_256128'
+  magick logo.png -resize 256x256 -background black -flatten -depth 8 rgba:-
+  magick logo.png -resize 128x128 -background black -flatten -depth 8 rgba:-
+} > logo.bin
+```
+
+m1n1 reads the `chosen.bootargs` line as configuration, takes the DTB whose
+root compatible names the device, and hands the framed initramfs to Linux
+unexpanded. Boot `linux.bin` like any m1n1 payload: through Pongo (`orchard
+run` does this), the m1n1 proxy, or an installed m1n1.
 
 ## Lower-level Python functions
 

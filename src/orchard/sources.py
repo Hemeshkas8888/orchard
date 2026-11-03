@@ -93,8 +93,13 @@ def declared_tree(url, commit, patches, *, cache=None, donor=None):
             return tree
 
 
-def working_tree(source):
-    """Snapshot tracked/untracked source edits without changing the user's index."""
+def working_tree(source, *, force=True):
+    """Snapshot tracked/untracked source edits without changing the user's index.
+
+    force also takes files the tree's .gitignore matches: orchard's own kernel
+    trees build elsewhere, so nothing in them is rightly ignored. A developer's
+    kernel tree (force=False) keeps its ignore rules, for in-tree build output.
+    """
     source = Path(source).resolve()
     with tempfile.TemporaryDirectory(prefix='orchard-index-') as temporary:
         index = Path(temporary) / 'index'
@@ -103,10 +108,17 @@ def working_tree(source):
             original = source / original
         env = {**os.environ, 'GIT_INDEX_FILE': str(index)}
         if original.exists():
-            shutil.copyfile(original, index)
+            # copy2 keeps the index's mtime: git re-hashes a file whose mtime is
+            # not older than the index ("racy git"), so an edit in the same second
+            # as the last index write, with the same size, is still seen.
+            shutil.copy2(original, index)
         else:
             git(source, 'read-tree', 'HEAD', env=env)
-        git(source, 'add', '--all', '--', '.', env=env)
+        # --force: on a case-insensitive filesystem git ignores case too, so an
+        # ignore pattern like the kernel's *.s would drop a new headsmp.S from
+        # the snapshot. The kernel builds into a separate directory, so the
+        # source holds no files that are rightly ignored.
+        git(source, 'add', '--all', *(['--force'] if force else []), '--', '.', env=env)
         return git(source, 'write-tree', env=env).decode()
 
 

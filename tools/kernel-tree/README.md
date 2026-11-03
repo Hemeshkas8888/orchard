@@ -29,12 +29,15 @@ in a Linux container.
 ## Regenerating the trees (maintainers)
 
 ```sh
-tools/kernel-tree/regenerate --linux ../linux --m1n1 ../m1n1 [ORCHARD_COMMIT]
+orchard python tools/kernel-tree/regenerate --linux ../linux --m1n1 ../m1n1 [ORCHARD_COMMIT]
 ```
 
-It applies the series in build order, one commit per patch and one merge per
-patch directory, adds the platform defconfigs (checked to reproduce
-`kernel/configs`), and moves `main` of both clones. It pushes nothing.
+Every platform descriptor names its branch in OrchardLinux/linux (`main` for
+apple-16k and apple-4k, `armv7` for apple-armv7). For each branch it applies that
+series onto its upstream base (fetched if missing) in build order, one commit
+per patch and one merge per patch directory, adds the platforms' defconfigs
+(checked to reproduce `kernel/configs`), and moves the branch; m1n1 `main`
+likewise. It pushes nothing.
 
 Regeneration is stable: a commit keeps the committer and date of the orchard
 commit that last changed its patch file, and a merge cites the orchard commit

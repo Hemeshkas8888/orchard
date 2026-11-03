@@ -34,6 +34,7 @@ class KernelSDKTests(unittest.TestCase):
             path.write_text('prerequisite\n')
         (output / '.config').write_text('config\n')
         (output / 'include/config/kernel.release').write_text('test-release\n')
+        (output / 'modules.order').write_text('drivers/keep.o\ndrivers/replace.o\n')
         return output
 
     def test_sdk_exports_prerequisites_not_full_objects_or_source_links(self):

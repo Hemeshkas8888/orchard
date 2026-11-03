@@ -1,101 +1,213 @@
-#!/usr/bin/env bash
-# Regenerate main of the linux and m1n1 trees from an orchard commit.
-#
-#   tools/kernel-tree/regenerate --linux DIR --m1n1 DIR [ORCHARD_COMMIT]
-#
-# DIR are clones of OrchardLinux/linux and OrchardLinux/m1n1 that contain the
-# upstream bases (v7.3-rc1 / Asahi's c9ef56f7, see kernel/upstream.lock and
-# boot/m1n1/upstream.lock). ORCHARD_COMMIT defaults to HEAD of this checkout.
-# linux main also gets the platform defconfigs, made with `make savedefconfig`
-# in the kernel toolchain container and checked to reproduce kernel/configs.
-# Nothing is pushed.
-set -euo pipefail
-here=$(cd "$(dirname "$0")" && pwd)
-orchard=$(cd "$here/../.." && pwd)
-python=${ORCHARD_PYTHON:-python3}
-linux= m1n1= commit=HEAD
-while (($#)); do
-  case $1 in
-    --linux) linux=$2; shift 2;;
-    --m1n1) m1n1=$2; shift 2;;
-    -h|--help) sed -n '2,12p' "$0"; exit 0;;
-    *) commit=$1; shift;;
-  esac
-done
-[[ -n $linux && -n $m1n1 ]] || { echo 'Usage: regenerate --linux DIR --m1n1 DIR [ORCHARD_COMMIT]' >&2; exit 2; }
-commit=$(git -C "$orchard" rev-parse --short "$commit")
-image=localhost/orchard-hardware-kernel-toolchain:bookworm
+#!/usr/bin/env python3
+"""Regenerate the branches of the linux tree and main of m1n1 from an orchard commit.
 
-lock() { git -C "$orchard" show "$commit:$1" | awk -F= '$1=="commit" {print $2}'; }
-set_main() {  # repo new-commit
-  local repo=$1 new=$2 current
-  current=$(git -C "$repo" symbolic-ref -q --short HEAD || true)
-  if [[ $current == main ]]; then
-    [[ -z $(git -C "$repo" status --porcelain) ]] || { echo "$repo: main has local changes; not moved" >&2; exit 1; }
-    git -C "$repo" reset -q --hard "$new"
-  else
-    git -C "$repo" update-ref refs/heads/main "$new"
-  fi
-  echo "$(basename "$repo") main $(git -C "$repo" rev-parse --short main)"
-}
+  orchard python tools/kernel-tree/regenerate --linux DIR --m1n1 DIR [ORCHARD_COMMIT]
 
-# --- linux: patch layers, then the defconfigs
-"$python" -I "$here/convert.py" --orchard "$orchard" --commit "$commit" --layers kernel \
-  --target "$linux" --base "$(lock kernel/upstream.lock)" --map "$linux/.git/orchard-patch-map"
-converted=$(git -C "$linux" rev-parse refs/orchard/converted)
-podman image exists "$image" || podman build -q -t "$image" -f "$orchard/kernel/Containerfile" "$orchard/kernel"
-out=$(mktemp -d); trap 'rm -rf "$out"' EXIT
-mkdir -p "$out/configs"
-git -C "$orchard" archive "$commit" kernel/configs | tar -x -C "$out/configs" --strip-components=2
-echo 'Making the defconfigs in the toolchain container...'
-git -C "$linux" archive "$converted" | podman run --rm -i --userns keep-id -v "$out:/out" "$image" bash -euc '
-  mkdir /tmp/src && tar -x -C /tmp/src
-  for config in /out/configs/*/config; do
-    platform=$(basename "$(dirname "$config")") name=orchard_${platform//-/}_defconfig
-    mkdir -p "/tmp/b/$platform" "/tmp/r/$platform"
-    cp "$config" "/tmp/b/$platform/.config"
-    make -s -C /tmp/src O="/tmp/b/$platform" LLVM=-19 ARCH=arm64 olddefconfig
-    cmp "/tmp/b/$platform/.config" "$config"
-    make -s -C /tmp/src O="/tmp/b/$platform" LLVM=-19 ARCH=arm64 savedefconfig
-    cp "/tmp/b/$platform/defconfig" "/tmp/src/arch/arm64/configs/$name"
-    make -s -C /tmp/src O="/tmp/r/$platform" LLVM=-19 ARCH=arm64 "$name"
-    cmp "/tmp/r/$platform/.config" "$config"
-    cp "/tmp/b/$platform/defconfig" "/out/$name"
-    echo "$name reproduces kernel/configs/$platform/config"
-  done'
-# The defconfig commit is authored and committed as the last change to kernel/configs.
-field() { git -C "$orchard" log -1 --format="$1" "$commit" -- kernel/configs; }
-changed=$(field %h) an=$(field %an) ae=$(field %ae) cn=$(field %cn) ce=$(field %ce) date=$(field %cD)
-export GIT_INDEX_FILE="$out/index"
-git -C "$linux" read-tree "$converted"
-names=()
-for defconfig in "$out"/orchard_*_defconfig; do
-  name=$(basename "$defconfig"); names+=("$name")
-  blob=$(git -C "$linux" hash-object -w "$defconfig")
-  git -C "$linux" update-index --add --cacheinfo "100644,$blob,arch/arm64/configs/$name"
-done
-tree=$(git -C "$linux" write-tree)
-unset GIT_INDEX_FILE
-export GIT_AUTHOR_NAME=$an GIT_AUTHOR_EMAIL=$ae GIT_AUTHOR_DATE=$date
-export GIT_COMMITTER_NAME=$cn GIT_COMMITTER_EMAIL=$ce GIT_COMMITTER_DATE=$date
-configs=$(git -C "$linux" commit-tree "$tree" -p "$converted" -F - <<EOF
-arm64: configs: Add Orchard platform defconfigs
+Every platform descriptor (platforms/<name>.toml) names its branch in
+OrchardLinux/linux; platforms on one branch share their upstream lock and
+series. For each branch this converts the series onto its upstream base
+(fetched into the clone if missing), adds the platforms' defconfigs, made
+with savedefconfig in the kernel toolchain container and checked to
+reproduce kernel/configs byte for byte, and moves the branch. m1n1 has one
+series, which becomes its main. Everything is read from ORCHARD_COMMIT
+(default: HEAD of this checkout), not from the working tree. Nothing is
+pushed.
 
-${names[*]}: \`make savedefconfig\` of orchard's
-kernel/configs/<platform>/config as of orchard $changed. \`make <name>\` with LLVM=-19
-reproduces those configs byte for byte. orchard_apple16k_defconfig covers
-A9 and later (16 KiB pages), orchard_apple4k_defconfig A7, A8 and A8X.
+orchard is the source of truth until the switch, so a branch is only moved
+from where regenerate last left it (refs/orchard/generated/BRANCH): a branch
+with commits of its own, a defconfig edit included, is refused until they
+are exported to orchard (export.py), never overwritten.
+"""
+import argparse
+import collections
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
-Assisted-by: LLM
-EOF
-)
-git -C "$linux" update-ref refs/topics/configs "$configs"
-merged=$(git -C "$linux" commit-tree "$tree" -p "$converted" -p "$configs" \
-  -m 'Merge configs (1 patch)' -m "From kernel/configs as of orchard $changed.")
-unset GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_AUTHOR_DATE GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL GIT_COMMITTER_DATE
-set_main "$linux" "$merged"
+if sys.version_info < (3, 11):
+    sys.exit('Needs Python 3.11 or later: run it as orchard python tools/kernel-tree/regenerate ...')
 
-# --- m1n1
-"$python" -I "$here/convert.py" --orchard "$orchard" --commit "$commit" --layers boot/m1n1 \
-  --target "$m1n1" --base "$(lock boot/m1n1/upstream.lock)" --map "$m1n1/.git/orchard-patch-map"
-set_main "$m1n1" "$(git -C "$m1n1" rev-parse refs/orchard/converted)"
+HERE = Path(__file__).resolve().parent
+ORCHARD = HERE.parents[1]
+IMAGE = 'localhost/orchard-hardware-kernel-toolchain:bookworm'
+
+parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
+parser.add_argument('--linux', required=True, type=Path, help='clone of OrchardLinux/linux')
+parser.add_argument('--m1n1', required=True, type=Path, help='clone of OrchardLinux/m1n1')
+parser.add_argument('commit', nargs='?', default='HEAD', help='orchard commit (default HEAD)')
+args = parser.parse_args()
+
+
+def run(*cmd, input=None, env=None, cwd=None, quiet=False):
+    r = subprocess.run([str(c) for c in cmd], input=input, env=env, cwd=cwd,
+                       capture_output=True)
+    if r.returncode:
+        sys.exit(f'{" ".join(map(str, cmd[:6]))} failed:\n{r.stderr.decode()}')
+    return r.stdout.decode().strip() if not quiet else r.stdout
+
+
+def git(repo, *cmd, **kw):
+    return run('git', '-C', repo, *cmd, **kw)
+
+
+commit = git(ORCHARD, 'rev-parse', '--short', args.commit)
+work = Path(tempfile.mkdtemp(prefix='regenerate-'))
+try:
+    # The descriptors, series and configs of COMMIT, not of the working tree.
+    snapshot = work / 'orchard'
+    snapshot.mkdir()
+    run('tar', '-x', '-C', snapshot,
+        input=git(ORCHARD, 'archive', commit, 'kernel', 'platforms', 'devices', quiet=True))
+    platforms = sorted(p.stem for p in (snapshot / 'platforms').glob('*.toml'))
+    described = {p: json.loads(run(sys.executable, snapshot / 'kernel/series.py', '--platform', p))
+                 for p in platforms}
+    branches = collections.defaultdict(list)
+    for name, value in described.items():
+        if 'branch' not in value:
+            sys.exit(f'platforms/{name}.toml at orchard {commit} names no branch; that commit '
+                     'predates per-platform branches in OrchardLinux/linux')
+        branches[value['branch']].append(name)
+
+    def lock(path):
+        return dict(l.split('=', 1) for l in (snapshot / path).read_text().splitlines() if '=' in l)
+
+    def layers(path):
+        """The series' layer lines, without comments: what is applied."""
+        return [l.split('#', 1)[0].strip() for l in (snapshot / path).read_text().splitlines()
+                if l.split('#', 1)[0].strip()]
+
+    for branch, names in sorted(branches.items()):
+        first = described[names[0]]
+        for name in names[1:]:
+            if lock(described[name]['upstream']) != lock(first['upstream']):
+                sys.exit(f'{name} and {names[0]} share branch {branch} but not their upstream base')
+            if layers(described[name]['series']) != layers(first['series']):
+                sys.exit(f'{name} and {names[0]} share branch {branch} but not their patch layers')
+        git(args.linux, 'check-ref-format', '--branch', branch)
+        base = lock(first['upstream'])
+        if subprocess.run(['git', '-C', args.linux, 'cat-file', '-e', base['commit'] + '^{commit}'],
+                          capture_output=True).returncode:
+            print(f'{branch}: fetching {base["commit"][:12]} from {base["url"]}')
+            git(args.linux, 'fetch', '-q', '--depth=1', base['url'], base['commit'])
+        print(f'== {branch}: {", ".join(names)} on {base["commit"][:12]}')
+        # Only from where regenerate left it: anything else on the branch is not in orchard yet.
+        generated = subprocess.run(['git', '-C', args.linux, 'rev-parse', '-q', '--verify',
+                                    f'refs/orchard/generated/{branch}'], capture_output=True, text=True).stdout.strip()
+        tip = subprocess.run(['git', '-C', args.linux, 'rev-parse', '-q', '--verify', f'refs/heads/{branch}'],
+                             capture_output=True, text=True).stdout.strip()
+        if generated and tip and tip != generated:
+            own = git(args.linux, 'rev-list', '--count', f'{generated}..{tip}')
+            sys.exit(f'linux {branch} has {own} commit(s) regenerate did not make, since {generated[:12]}; '
+                     'export them to orchard first (tools/kernel-tree/export.py), or reset the branch to '
+                     f'refs/orchard/generated/{branch} to drop them')
+        subprocess.run([sys.executable, '-I', HERE / 'convert.py', '--orchard', ORCHARD,
+                        '--commit', commit, '--layers', 'kernel',
+                        '--series', Path(first['series']).relative_to('kernel'),
+                        '--refs', branch, '--target', args.linux, '--base', base['commit'],
+                        '--map', args.linux / '.git' / f'orchard-patch-map-{branch.replace("/", "-")}'],
+                       check=True)
+        converted = git(args.linux, 'rev-parse', 'refs/orchard/converted')
+
+        # The defconfigs: made in the toolchain container, checked to reproduce kernel/configs.
+        out = work / f'defconfigs-{len(names)}-{branch.replace("/", "-")}'
+        out.mkdir()
+        lines = []
+        for name in names:
+            d = described[name]
+            (out / name).mkdir()
+            (out / name / 'config').write_bytes((snapshot / d['config']).read_bytes())
+            lines.append(f'{name} {d["arch"]} {d["defconfig"]}')
+        (out / 'platforms').write_text('\n'.join(lines) + '\n')
+        if subprocess.run(['podman', 'image', 'exists', IMAGE]).returncode:
+            run('podman', 'build', '-q', '-t', IMAGE, '-f', ORCHARD / 'kernel/Containerfile', ORCHARD / 'kernel')
+        print(f'{branch}: making the defconfigs in the toolchain container...')
+        tree = git(args.linux, 'archive', converted, quiet=True)
+        print(run('podman', 'run', '--rm', '-i', '--userns', 'keep-id', '-v', f'{out}:/out', IMAGE,
+                  'bash', '-euc', '''
+            mkdir /tmp/src && tar -x -C /tmp/src
+            while read -r name arch defconfig; do
+              mkdir -p "/tmp/b/$name" "/tmp/r/$name"
+              cp "/out/$name/config" "/tmp/b/$name/.config"
+              make -s -C /tmp/src O="/tmp/b/$name" LLVM=-19 ARCH="$arch" olddefconfig
+              cmp "/tmp/b/$name/.config" "/out/$name/config"
+              make -s -C /tmp/src O="/tmp/b/$name" LLVM=-19 ARCH="$arch" savedefconfig
+              cp "/tmp/b/$name/defconfig" "/tmp/src/arch/$arch/configs/$defconfig"
+              make -s -C /tmp/src O="/tmp/r/$name" LLVM=-19 ARCH="$arch" "$defconfig"
+              cmp "/tmp/r/$name/.config" "/out/$name/config"
+              cp "/tmp/b/$name/defconfig" "/out/$name/defconfig"
+              echo "$defconfig reproduces $name"
+            done < /out/platforms''', input=tree))
+
+        # One commit with the defconfigs, authored and committed as the last change to these configs.
+        configs = [described[n]['config'] for n in names]
+        field = lambda f: git(ORCHARD, 'log', '-1', f'--format={f}', commit, '--', *configs)
+        changed = field('%h')
+        identity = {'GIT_AUTHOR_NAME': field('%an'), 'GIT_AUTHOR_EMAIL': field('%ae'),
+                    'GIT_AUTHOR_DATE': field('%cD'), 'GIT_COMMITTER_NAME': field('%cn'),
+                    'GIT_COMMITTER_EMAIL': field('%ce'), 'GIT_COMMITTER_DATE': field('%cD')}
+        env = {**os.environ, 'GIT_INDEX_FILE': str(out / 'index')}
+        git(args.linux, 'read-tree', converted, env=env)
+        added = []
+        for name in names:
+            d = described[name]
+            blob = git(args.linux, 'hash-object', '-w', out / name / 'defconfig')
+            git(args.linux, 'update-index', '--add', '--cacheinfo',
+                f'100644,{blob},arch/{d["arch"]}/configs/{d["defconfig"]}', env=env)
+            added.append(f'{d["defconfig"]} ({name})')
+        configs_tree = git(args.linux, 'write-tree', env=env)
+        message = ('arm64: configs: Add Orchard platform defconfigs' if all(
+                       described[n]['arch'] == 'arm64' for n in names)
+                   else 'ARM: configs: Add Orchard platform defconfigs') + '\n\n' + \
+                  ', '.join(added) + ':\n`make savedefconfig` of orchard\'s ' \
+                  f'kernel/configs/<platform>/config as of orchard {changed}.\n' \
+                  '`make <name>` with LLVM=-19 reproduces those configs byte for byte.\n\n' \
+                  'Assisted-by: LLM\n'
+        configs_commit = git(args.linux, 'commit-tree', configs_tree, '-p', converted,
+                             input=message.encode(), env={**os.environ, **identity})
+        git(args.linux, 'update-ref', f'refs/topics/{branch}/configs', configs_commit)
+        merged = git(args.linux, 'commit-tree', configs_tree, '-p', converted, '-p', configs_commit,
+                     '-m', 'Merge configs (1 patch)', '-m', f'From kernel/configs as of orchard {changed}.',
+                     env={**os.environ, **identity})
+
+        # Move the branch; a checked-out branch only when its working tree is clean.
+        current = subprocess.run(['git', '-C', args.linux, 'symbolic-ref', '-q', '--short', 'HEAD'],
+                                 capture_output=True, text=True).stdout.strip()
+        if current == branch:
+            if git(args.linux, 'status', '--porcelain'):
+                sys.exit(f'{args.linux}: {branch} has local changes; not moved')
+            git(args.linux, 'reset', '-q', '--hard', merged)
+        else:
+            git(args.linux, 'update-ref', f'refs/heads/{branch}', merged)
+        git(args.linux, 'update-ref', f'refs/orchard/generated/{branch}', merged)
+        print(f'linux {branch} {merged[:12]} tree {git(args.linux, "rev-parse", merged + "^{tree}")[:12]}')
+
+    # m1n1: one series, one main.
+    generated = subprocess.run(['git', '-C', args.m1n1, 'rev-parse', '-q', '--verify', 'refs/orchard/generated/main'],
+                               capture_output=True, text=True).stdout.strip()
+    tip = subprocess.run(['git', '-C', args.m1n1, 'rev-parse', '-q', '--verify', 'refs/heads/main'],
+                         capture_output=True, text=True).stdout.strip()
+    if generated and tip and tip != generated:
+        sys.exit(f'm1n1 main has {git(args.m1n1, "rev-list", "--count", f"{generated}..{tip}")} commit(s) regenerate '
+                 'did not make; export them to orchard first, or reset main to refs/orchard/generated/main')
+    m1n1_base = dict(l.split('=', 1) for l in git(ORCHARD, 'show', f'{commit}:boot/m1n1/upstream.lock')
+                     .splitlines() if '=' in l)['commit']
+    subprocess.run([sys.executable, '-I', HERE / 'convert.py', '--orchard', ORCHARD, '--commit', commit,
+                    '--layers', 'boot/m1n1', '--refs', 'main', '--target', args.m1n1,
+                    '--base', m1n1_base, '--map', args.m1n1 / '.git/orchard-patch-map-main'], check=True)
+    converted = git(args.m1n1, 'rev-parse', 'refs/orchard/converted')
+    current = subprocess.run(['git', '-C', args.m1n1, 'symbolic-ref', '-q', '--short', 'HEAD'],
+                             capture_output=True, text=True).stdout.strip()
+    if current == 'main':
+        if git(args.m1n1, 'status', '--porcelain'):
+            sys.exit(f'{args.m1n1}: main has local changes; not moved')
+        git(args.m1n1, 'reset', '-q', '--hard', converted)
+    else:
+        git(args.m1n1, 'update-ref', 'refs/heads/main', converted)
+    git(args.m1n1, 'update-ref', 'refs/orchard/generated/main', converted)
+    print(f'm1n1 main {converted[:12]}')
+finally:
+    import shutil
+    shutil.rmtree(work, ignore_errors=True)

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Cache: this script's text is not part of the cached kernel's key. If a change
+# alters what it produces, raise KERNEL_PRODUCER in src/orchard/build.py.
 """Install built kernel and additional modules into a local filesystem tree."""
 import argparse
 from pathlib import Path
@@ -23,12 +25,23 @@ def main():
     external = [p for root in args.external for p in root.rglob('*.ko')]
     overrides = {p.stem.replace('-', '_') for p in external}
     builtin = [args.build / n for n in ('modules.builtin', 'modules.builtin.modinfo')]
-    if not all(p.is_file() for p in builtin):
+    order = args.build / 'modules.order'
+    if not all(p.is_file() for p in (*builtin, order)):
         parser.error('missing kernel module metadata')
+    # The modules of this build are the ones its modules.order lists. A build
+    # directory is reused, so it can still hold the .ko of a module an earlier
+    # config built; those must not ship. A bare kernel SDK keeps the list
+    # without the modules: then there is nothing in-tree to stage.
+    listed = [Path(line.strip()).with_suffix('.ko') for line in order.read_text().splitlines()
+              if line.strip()]
+    present = [r for r in listed if (args.build / r).is_file()]
+    if present and len(present) != len(listed):
+        missing = sorted(set(listed) - set(present))
+        parser.error(f'modules.order lists modules that were not built: {", ".join(map(str, missing[:5]))}')
     rows = []
-    for p in sorted(args.build.rglob('*.ko')):
-        if p.stem.replace('-', '_') not in overrides:
-            rows.append((p, Path('kernel') / p.relative_to(args.build)))
+    for relative in sorted(present):
+        if relative.stem.replace('-', '_') not in overrides:
+            rows.append((args.build / relative, Path('kernel') / relative))
     for p in sorted(external):
         rows.append((p, Path('extra') / p.name))
     names = [str(dest) for _, dest in rows]

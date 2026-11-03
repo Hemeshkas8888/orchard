@@ -1,0 +1,35 @@
+{
+  "schema": 2,
+  "device": "iPad2,5",
+  "ipsw": {
+    "version": "8.4.1",
+    "build": "12H321",
+    "url": "https://secure-appldnld.apple.com/ios8.4.1/031-31249-20150812-75235CC6-3C8F-11E5-848D-BE1A3A53DB92/iPad2,5_8.4.1_12H321_Restore.ipsw",
+    "bytes": 1509764204,
+    "sha256": "ce6cd59a4a3271eccb93b31c8d40e94ad966112999576663b3ab235196154756"
+  },
+  "inputs": {
+    "P105.mtprops": {
+      "ipsw": {
+        "rootfs": "usr/share/firmware/multitouch/P105.mtprops"
+      },
+      "device": "/usr/share/firmware/multitouch/P105.mtprops",
+      "sha256": "516b8db5f6144ad64698867b8f6e6209a49010fcff1cb103539fe5ea4ffb1390"
+    },
+    "borg.trx": {
+      "ipsw": {
+        "rootfs": "usr/share/firmware/wifi/4334b1/borg.trx"
+      },
+      "device": "/usr/share/firmware/wifi/4334b1/borg.trx",
+      "sha256": "fcc6e5b6f085b7b1ae8558fe0af4a689ab9e7eb49689ef443e194865b0be7d12"
+    },
+    "borg-t-st.txt": {
+      "ipsw": {
+        "rootfs": "usr/share/firmware/wifi/4334b1/borg-t-st.txt"
+      },
+      "device": "/usr/share/firmware/wifi/4334b1/borg-t-st.txt",
+      "sha256": "78d24471b6fecaf63ebda5d4e055d976905cda8230b2e166c3c2080f05aa6d81"
+    }
+  },
+  "outputs": []
+}

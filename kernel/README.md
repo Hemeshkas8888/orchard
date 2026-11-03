@@ -20,7 +20,11 @@ upstream pin, shared by every hardware checkout and worktree:
 (`--work-dir` chooses another). Every build continues that tree: a changed patch
 series resets the files the old series touched and applies the new one, so only
 affected files recompile. Hand edits in the tree are refused rather than lost.
-A second build of the same tree waits for the first. Compiled objects also go
+A second build of the same tree waits for the first. The cache key of a built kernel is what
+determines it: the source tree, the config, the descriptor's arch, image and
+DTB directory, the toolchain image and `KERNEL_PRODUCER` in
+`src/orchard/build.py`, not the text of these scripts; raise that version when
+a change alters what they produce. Compiled objects also go
 into a compiler cache (ccache) next to the trees, `.../orchard/ccache/kernel/`,
 so a tree that returns to a patch set built before, in any worktree, compiles it
 from the cache. ccache stands in for `clang-19` on the recipe's PATH, so the

@@ -207,14 +207,14 @@ class RamTests(unittest.TestCase):
             main()
             build.assert_called_once_with(self.base, hardware=None, cache=None, kernel=None,
                                           busybox=None, loader=None, pongo=Path('local.bin'), device=None,
-                                          platform=None)
+                                          platform=None, kernel_tree=None)
             lock.assert_not_called()
         with patch('sys.argv', ['orchard', 'run', str(self.base)]), \
                 patch.object(boot, 'run_directory') as run:
             main()
             run.assert_called_once_with(self.base, yes=False, build=True, device=None, platform=None,
                                         hardware=None, cache=None, kernel=None, busybox=None, loader=None,
-                                        pongo=None)
+                                        pongo=None, kernel_tree=None)
 
     def test_cli_noninteractive_run_flags(self):
         from orchard.command import main
@@ -497,7 +497,7 @@ class RamTests(unittest.TestCase):
                 ram.build_directory(directory)
                 # Components are per platform; its first board selects them.
                 prepare.assert_called_once_with(self.hardware, self.base / 'shared-cache', device='d10', kernel=None,
-                                                busybox=None, loader=None, pongo=None)
+                                                busybox=self.tools / 'busybox', loader=None, pongo=None, kernel_tree=None)
                 ram.verify_ram(directory / 'out/apple-16k')
                 if directory.name == 'charger 001':
                     archive = gzip.decompress((directory / 'out/apple-16k/initramfs.cpio.gz').read_bytes())
@@ -507,12 +507,16 @@ class RamTests(unittest.TestCase):
         directory = self.base / 'tools-project'
         directory.mkdir()
         shutil.copyfile(self.init, directory / 'init')
+        (self.tools / 'component.json').write_text('{"private-host-path": "not a tool"}')
+        (self.tools / 'published.json').write_text('{"tag": "not a tool"}')
         with patch.object(build, 'prepare_components', return_value=self.components), \
                 patch.object(build, 'cache_root', return_value=self.base / 'shared-cache'):
             ram.build_directory(directory)
         archive = gzip.decompress((directory / 'out/apple-16k/initramfs.cpio.gz').read_bytes())
         self.assertIn(b'usr/sbin/wpa_supplicant', archive)
         self.assertNotIn(b'usr/bin/busybox', archive)
+        self.assertNotIn(b'usr/bin/component.json', archive)
+        self.assertNotIn(b'usr/bin/published.json', archive)
 
     def test_firmware_is_a_layer_for_the_booted_board_outside_the_project(self):
         from orchard import firmware
@@ -606,7 +610,7 @@ class RamTests(unittest.TestCase):
             with build.component_lock(cache):
                 waited = time.monotonic() - started
         self.assertGreater(waited, 0.5)
-        self.assertIn('Waiting for another Orchard build', stderr.getvalue())
+        self.assertIn('Waiting for another Orchard process to finish changing', stderr.getvalue())
 
 
 if __name__ == '__main__':

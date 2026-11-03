@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Recipes need only Python 3.11+ and its standard library; Orchard passes its own.
+# Cache: this script's text is not part of the cached kernel's key. If a change
+# alters what it produces, raise KERNEL_PRODUCER in src/orchard/build.py.
 python=${ORCHARD_PYTHON:-python3}
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -8,16 +10,18 @@ device=${1:-}
 [[ $# -gt 0 ]] && shift
 dest=
 work=
+tree=
 while (($#)); do
   case "$1" in
     --output) [[ $# -ge 2 ]] || { echo 'Missing --output value' >&2; exit 2; }; dest=$2; shift 2;;
     --work-dir) [[ $# -ge 2 ]] || { echo 'Missing --work-dir value' >&2; exit 2; }; work=$2; shift 2;;
+    --kernel-tree) [[ $# -ge 2 ]] || { echo 'Missing --kernel-tree value' >&2; exit 2; }; tree=$2; shift 2;;
     --resume) shift;; # every build continues its tree; kept for older callers
     *) echo "Unknown argument: $1" >&2; exit 2;;
   esac
 done
 if [[ ! "$device" =~ ^[a-z0-9][a-z0-9_-]*$ || -z "$dest" || -e "$dest" ]]; then
-  echo 'Usage: ./kernel/build DEVICE|PLATFORM --output DIRECTORY [--work-dir DIRECTORY]' >&2
+  echo 'Usage: ./kernel/build DEVICE|PLATFORM --output DIRECTORY [--work-dir DIRECTORY] [--kernel-tree PATH]' >&2
   exit 2
 fi
 # One kernel per platform; a device only selects which DTB is also copied
@@ -27,7 +31,15 @@ read -r platform device_dtb < <("$python" "$here/series.py" --resolve "$device")
 # platform's descriptor, platforms/<platform>.toml.
 descriptor=$("$python" "$here/series.py" --platform "$platform")
 field() { "$python" -c 'import json, sys; print(json.loads(sys.argv[1])[sys.argv[2]])' "$descriptor" "$1"; }
-arch=$(field arch) image=$(field image) dtbs=$(field dtbs)
+arch=$(field arch) image=$(field image) dtbs=$(field dtbs) defconfig=$(field defconfig)
+# --kernel-tree PATH builds that kernel tree as it is, with its own defconfig
+# (arch/ARCH/configs/DEFCONFIG): no upstream fetch, no patch series.
+if [[ -n $tree ]]; then
+  tree=$(cd "$tree" && pwd -P)
+  [[ -f "$tree/Makefile" && -f "$tree/arch/$arch/configs/$defconfig" ]] || {
+    echo "$tree is not a kernel tree with arch/$arch/configs/$defconfig" >&2; exit 1;
+  }
+fi
 config="$here/../$(field config)" lock="$here/../$(field upstream)"
 patches=()
 while IFS= read -r patch; do
@@ -38,16 +50,27 @@ command -v git >/dev/null || { echo 'Git is required' >&2; exit 1; }
 if [[ ${ORCHARD_BUILD_NATIVE:-0} != 1 ]]; then
   podman info >/dev/null || { echo 'Podman is unavailable' >&2; exit 1; }
 fi
-url=$(awk -F= '$1=="url" {print substr($0,5)}' "$lock")
-commit=$(awk -F= '$1=="commit" {print $2}' "$lock")
-[[ "$url" == https://github.com/torvalds/linux.git && "$commit" =~ ^[0-9a-f]{40}$ ]] || {
-  echo "Unexpected upstream lock ${lock#"$here"/../}" >&2; exit 1;
-}
+if [[ -z $tree ]]; then
+  url=$(awk -F= '$1=="url" {print substr($0,5)}' "$lock")
+  commit=$(awk -F= '$1=="commit" {print $2}' "$lock")
+  [[ "$url" == https://github.com/torvalds/linux.git && "$commit" =~ ^[0-9a-f]{40}$ ]] || {
+    echo "Unexpected upstream lock ${lock#"$here"/../}" >&2; exit 1;
+  }
+fi
 # One incremental tree per platform and upstream pin, shared by every hardware
 # checkout and worktree in the Orchard cache: a new checkout continues from the
 # last build, and a patch change recompiles only the files it touches.
 cache=${ORCHARD_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/orchard}
-work=${work:-"$cache/kernel-work/$platform-${commit:0:12}"}
+if [[ -n $tree ]]; then
+  # A kernel tree builds inside itself, in a directory its git ignores: the
+  # output lives and goes with the tree, and trees never wait for each other.
+  work=${work:-"$tree/.orchard-out/$platform"}
+  exclude=$(git -C "$tree" rev-parse --git-path info/exclude)
+  [[ $exclude == /* ]] || exclude=$tree/$exclude
+  grep -qxF '/.orchard-out/' "$exclude" 2>/dev/null || { mkdir -p "$(dirname "$exclude")"; echo '/.orchard-out/' >> "$exclude"; }
+else
+  work=${work:-"$cache/kernel-work/$platform-${commit:0:12}"}
+fi
 # Compiled objects keyed by preprocessed content, shared by every tree: a tree
 # that returns to a patch set built before compiles it from the cache.
 # ORCHARD_CCACHE=0 compiles without it.
@@ -56,7 +79,7 @@ if [[ ${ORCHARD_CCACHE:-1} != 0 ]]; then
   mkdir -p "$cache/ccache/kernel"
   compiler_cache=(--bind "$cache/ccache/kernel:/compiler_cache:rw")
 fi
-source="$work/source"
+source=${tree:-"$work/source"}
 build_output="$work/output"
 applied="$work/applied-patches"
 prepared="$work/prepared-tree"
@@ -75,6 +98,7 @@ except BlockingIOError:
 '
 fi
 
+if [[ -z $tree ]]; then
 patch_list() {
   # One git process for the whole series; it prints the hashes in argument order.
   local hash i=0
@@ -90,7 +114,9 @@ snapshot() {
   rm -f "$index"
   cp "$(git -C "$source" rev-parse --absolute-git-dir)/index" "$index" 2>/dev/null ||
     GIT_INDEX_FILE=$index git -C "$source" read-tree HEAD
-  GIT_INDEX_FILE=$index git -C "$source" add --all -- .
+  # --force: on a case-insensitive filesystem an ignore pattern like *.s also
+  # matches a new headsmp.S; the source holds no rightly ignored files.
+  GIT_INDEX_FILE=$index git -C "$source" add --all --force -- .
   GIT_INDEX_FILE=$index git -C "$source" write-tree
   rm -f "$index"
 }
@@ -165,8 +191,9 @@ else
     printf '%s\n' "$desired" > "$prepared"
   fi
 fi
+fi
 mkdir -p "$build_output"
-cp "$config" "$build_output/.config"
+[[ -n $tree ]] || cp "$config" "$build_output/.config"
 echo 'Preparing kernel build container...'
 "$python" "$here/../src/orchard/buildenv.py" build --file "$here/Containerfile" \
   --image localhost/orchard-hardware-kernel-toolchain:bookworm --context "$here"
@@ -176,7 +203,7 @@ echo 'Compiling kernel image, modules and device trees...'
   --bind "$source:/src:ro" --bind "$build_output:/out:rw" --bind "$(dirname "$config"):/config:ro" \
   ${compiler_cache[@]+"${compiler_cache[@]}"} \
   --image localhost/orchard-hardware-kernel-toolchain:bookworm -- bash -euc '
-    platform=$1 arch=$3 image=$4 config=$5
+    platform=$1 arch=$3 image=$4 config=$5 defconfig=$6
     export KBUILD_BUILD_USER=orchard KBUILD_BUILD_HOST=builder
     export KBUILD_BUILD_VERSION=1 KBUILD_BUILD_TIMESTAMP="2026-10-22T00:00:00Z"
     if [[ -n ${ORCHARD_COMPILER_CACHE:-} ]]; then
@@ -186,11 +213,15 @@ echo 'Compiling kernel image, modules and device trees...'
       ln -sf "$(command -v ccache)" "$ORCHARD_TMP/compiler-cache-bin/clang-19"
       export PATH="$ORCHARD_TMP/compiler-cache-bin:$PATH" CCACHE_DIR=$ORCHARD_COMPILER_CACHE
     fi
-    make -C "$ORCHARD_SRC" O="$ORCHARD_OUT" LLVM=-19 ARCH="$arch" olddefconfig
-    cmp "$ORCHARD_OUT/.config" "$ORCHARD_CONFIG/$config"
+    if [[ -n $defconfig ]]; then
+      make -C "$ORCHARD_SRC" O="$ORCHARD_OUT" LLVM=-19 ARCH="$arch" "$defconfig"
+    else
+      make -C "$ORCHARD_SRC" O="$ORCHARD_OUT" LLVM=-19 ARCH="$arch" olddefconfig
+      cmp "$ORCHARD_OUT/.config" "$ORCHARD_CONFIG/$config"
+    fi
     make -C "$ORCHARD_SRC" O="$ORCHARD_OUT" -j"${2:-$(nproc)}" LLVM=-19 ARCH="$arch" \
       LOCALVERSION="-orchard-$platform" DTC_FLAGS=-@ "$image" modules dtbs
-  ' bash "$platform" "${ORCHARD_KERNEL_JOBS:-}" "$arch" "$image" "$(basename "$config")"
+  ' bash "$platform" "${ORCHARD_KERNEL_JOBS:-}" "$arch" "$image" "$(basename "$config")" "${tree:+$defconfig}"
 echo 'Staging kernel modules and device trees...'
 stage=$(mktemp -d "$work/stage.XXXXXX")
 trap 'rm -rf "$stage"' EXIT

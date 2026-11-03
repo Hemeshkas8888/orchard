@@ -44,15 +44,30 @@ def boards(platform, hardware=None):
     return known[platform]
 
 
+ROOT_ARCH = 'arm64'  # distributions build one arm64 root for every platform
+
+
 def platforms(hardware=None):
-    """Every platform with at least one described board, sorted."""
+    """Every platform with at least one described board whose kernel runs the
+    shared arm64 root, sorted. A platform of another architecture (apple-armv7)
+    has no platform layer until a root of its architecture exists."""
+    from ..kernel import descriptor
     from ..ram import boards_by_platform
-    return sorted(boards_by_platform(hardware or ROOT))
+    hardware = hardware or ROOT
+    return sorted(platform for platform, boards in boards_by_platform(hardware).items()
+                  if descriptor(hardware, sorted(boards)[0])['arch'] == ROOT_ARCH)
 
 
 def kernel(platform, *, hardware=None, cache=None):
-    """The staged kernel bundle of PLATFORM, built or reused from the cache."""
-    from ..build import prepare_kernel
+    """The staged kernel bundle of PLATFORM: the nightly's when it was built from
+    this checkout's kernel state (orchard.published), else built or reused from
+    the cache. ORCHARD_KERNEL=local always compiles."""
+    from ..build import cache_root, prepare_kernel
+    from ..hardware import ROOT
+    from .. import published
+    found = published.kernel(Path(hardware or ROOT), Path(cache) if cache else cache_root(), platform)
+    if found is not None:
+        return found
     return prepare_kernel(hardware, cache, device=sorted(boards(platform, hardware))[0])
 
 
@@ -169,9 +184,13 @@ def main():
     parser.add_argument('--output', type=Path, required=True, help='directory for the layer')
     parser.add_argument('--kernel-dir', type=Path, help='a staged kernel bundle (default: build or reuse it)')
     parser.add_argument('--busybox', type=Path, help="orchard's static BusyBox (default: build or reuse it)")
+    parser.add_argument('--receipt', type=Path, help="also write the layer's receipt (JSON) here")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-    print(json.dumps(build(args.platform, args.output, bundle=args.kernel_dir, busybox=args.busybox), indent=2))
+    receipt = build(args.platform, args.output, bundle=args.kernel_dir, busybox=args.busybox)
+    if args.receipt:
+        args.receipt.write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
+    print(json.dumps(receipt, indent=2))
 
 
 if __name__ == '__main__':

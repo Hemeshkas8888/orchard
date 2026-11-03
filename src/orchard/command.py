@@ -23,7 +23,7 @@ def main():
     parser.add_argument('--verbose', action='store_true', help='show internal device events')
     commands = parser.add_subparsers(dest='action', required=True)
     build = commands.add_parser('build', help='build DIRECTORY/init and optional DIRECTORY/rootfs into a RAM payload '
-                                'for every board of one platform; in a distribution checkout (distro.toml), its release')
+                                'for every board of one platform; in a distribution checkout (orchard.toml [release]), its release')
     run = commands.add_parser('run', help='build what is missing for the attached board, then boot it; in a '
                               "distribution checkout, its release's recovery, without installing")
     for command, what in ((build, 'a payload directory (init, optional rootfs/) or a distribution checkout'),
@@ -33,12 +33,18 @@ def main():
                              '(default: dev-DATE-TIME)')
         command.add_argument('--device', help='a board; its platform is built (default: orchard.local.toml, '
                              'else the attached device)')
-        command.add_argument('--platform', help='the platform to build, e.g. apple-16k')
+        command.add_argument('--platform', action='append',
+                             help='the platform to build, e.g. apple-16k; a distribution checkout takes it '
+                             'more than once, or all (default: orchard.local.toml, else the attached board)')
         command.add_argument('--hardware', type=Path, help='use the hardware data and recipes of another orchard checkout')
         command.add_argument('--cache', type=Path, help='override the shared component cache')
         command.add_argument('--kernel-dir', type=Path, help='reuse a staged kernel/DTB/module tree')
+        command.add_argument('--kernel-tree', type=Path, help='build this kernel tree as it is, with its own '
+                             'defconfig (default: kernel-tree in orchard.local.toml, else orchard\'s own kernel)')
         for component in ('pongo', 'busybox', 'loader'):
             command.add_argument('--' + component, type=Path, help='reuse this local component')
+    build.add_argument('--explain', action='store_true',
+                       help='print what the build ran as plain commands (always written to out/PLATFORM/commands.sh)')
     cached = commands.add_parser('cache', help='list, remove or prune shared build components; no device access')
     cached.add_argument('remove', nargs='*', metavar='COMPONENT[/KEY]',
                         help='entries to delete, e.g. kernel-j71b/0bd1204e; lists entries when omitted')
@@ -103,28 +109,61 @@ def main():
         if args.action in ('build', 'run'):
             from orchard import distro
             root = distro.find(args.directory)
-            payload_only = [name for name in ('device', 'platform', 'hardware', 'cache', 'kernel_dir',
+            payload_only = [name for name in ('hardware', 'cache', 'kernel_dir',
                                               'pongo', 'busybox', 'loader') if getattr(args, name) is not None]
             if root is not None:
                 if payload_only:
                     raise ValueError(f'--{payload_only[0].replace("_", "-")} is for RAM payloads; '
-                                     f'{root} is a distribution checkout (distro.toml)')
+                                     f'{root} is a distribution checkout (orchard.toml [release])')
+                if args.action == 'run' and (args.platform or args.device):
+                    raise ValueError('orchard run boots the attached board: it takes no --platform or --device')
                 if args.action == 'build':
-                    distro.build(root, version=args.version)
+                    platforms = None
+                    if distro.settings(root)['selects_platform']:
+                        from orchard import ram
+                        from orchard.hardware import ROOT
+                        platforms = ram.resolve_platforms(root, ROOT, platforms=args.platform or (),
+                                                          device=args.device)
+                    elif args.platform or args.device:
+                        raise ValueError(f'{root.name}\'s build entry builds every platform and takes no '
+                                         '--platform or --device; update the distribution '
+                                         '(orchard.toml [release] selects-platform = true)')
+                    from orchard.build import resolve_kernel_tree
+                    index = distro.build(root, version=args.version, platforms=platforms,
+                                         kernel_tree=resolve_kernel_tree(root, args.kernel_tree))
+                    commands = index.parent.parent / f'{index.parent.name}.commands.sh'
+                    if args.explain:
+                        print(commands.read_text(), end='')
+                    else:
+                        print(f'What it ran, as a plain command: {commands} (or orchard build --explain)')
                 else:
                     if args.no_build and args.version:
                         raise ValueError('--no-build boots the last build; leave out --version')
+                    if args.no_build and args.kernel_tree:
+                        raise ValueError('--no-build boots the last build; leave out --kernel-tree')
+                    from orchard.build import resolve_kernel_tree
                     result = distro.run(root, build_first=not args.no_build, version=args.version,
-                                        yes=args.yes, progress=progress)
+                                        yes=args.yes, progress=progress,
+                                        kernel_tree=resolve_kernel_tree(root, args.kernel_tree))
                     print(json.dumps(result, indent=2))
                 return
             if args.version is not None:
-                raise ValueError('--version is for distribution checkouts (distro.toml)')
+                raise ValueError('--version is for distribution checkouts (orchard.toml [release])')
+        platform = None
+        if args.action in ('build', 'run') and args.platform:
+            if len(args.platform) > 1 or 'all' in args.platform:
+                raise ValueError('A RAM payload is built for one platform: give --platform once')
+            platform = args.platform[0]
         if args.action == 'build':
             from orchard.ram import build_directory
-            build_directory(args.directory, hardware=args.hardware, cache=args.cache,
-                            kernel=args.kernel_dir, busybox=args.busybox, loader=args.loader,
-                            pongo=args.pongo, device=args.device, platform=args.platform)
+            output = build_directory(args.directory, hardware=args.hardware, cache=args.cache,
+                                     kernel=args.kernel_dir, busybox=args.busybox, loader=args.loader,
+                                     pongo=args.pongo, device=args.device, platform=platform,
+                                     kernel_tree=args.kernel_tree)
+            if args.explain:
+                print((output / 'commands.sh').read_text(), end='')
+            else:
+                print(f'What it ran, as plain commands: {output / "commands.sh"} (or orchard build --explain)')
             return
         if args.action in ('shell', 'exec', 'push', 'pull'):
             from orchard import ram_session
@@ -157,8 +196,9 @@ def main():
         if args.action == 'run':
             from orchard.boot import run_directory
             run_directory(args.directory, yes=args.yes, build=not args.no_build, device=args.device,
-                          platform=args.platform, hardware=args.hardware, cache=args.cache,
-                          kernel=args.kernel_dir, busybox=args.busybox, loader=args.loader, pongo=args.pongo)
+                          platform=platform, hardware=args.hardware, cache=args.cache,
+                          kernel=args.kernel_dir, busybox=args.busybox, loader=args.loader, pongo=args.pongo,
+                          kernel_tree=args.kernel_tree)
             return
         with ExitStack() as stack:
             if args.action in ('boot', 'capture-adt'):
