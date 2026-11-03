@@ -36,8 +36,8 @@ nothing. The requirements are one list shared with the installer's boot tools
 (`setup-host`): OpenSSH, libusb, palera1n and Linux USB permissions for booting;
 git, Podman (and its machine on macOS), the `orchard` command and PATH for building.
 Packages come from glu, then Homebrew on macOS (neither is installed for you), or
-apt, dnf or pacman. The `orchard` command links to mainline's launcher, so it
-does not depend on any clone. Pongo comes from the latest release while its recipe
+apt, dnf or pacman. The `orchard` command is a copy of `tools/launcher`,
+which runs the newest nightly, so it does not depend on any clone. Pongo comes from the latest release while its recipe
 is unchanged, so most builds need no Xcode.
 
 ## Development: which orchard runs (done)
@@ -133,7 +133,7 @@ Done; `src/orchard/installer.py` and `src/orchard/user.py`.
   a launcher of the core with `install`, `launch`, `devices` and `update`. An
   installer writes it before installing (so `orchard launch` remains even if the
   install stops) and replaces it only with a newer core; a development orchard on
-  PATH (the mainline link of `./setup`) stays. `orchard update` installs the latest
+  PATH (the nightly launcher `./setup` installs) stays. `orchard update` installs the latest
   orchard release's `orchard-core.pyz` if it is newer. Later a self-contained Rust/C
   binary.
 - **State:** the store and the build cache record their layout version

@@ -55,14 +55,9 @@ pick() {
         printf '%s\n' "$cached"
         return
     fi
-    # Before the first nightly: orchard main, cloned once.
-    main=$cache/orchard-main
-    if [ ! -d "$main/.git" ]; then
-        mkdir -p "$cache"
-        git clone --quiet "$url" "$main" >&2
-    fi
-    echo "orchard: no nightly published yet; orchard main as of $(git -C "$main" log -1 --format=%cs)" >&2
-    printf '%s\n' "$main"
+    echo "orchard: no nightly reachable ($releases/nightly/latest.json) and none cached;" >&2
+    echo "  connect once, or run an orchard checkout's bin/orchard" >&2
+    exit 1
 }
 
 # The launcher this is, through links.

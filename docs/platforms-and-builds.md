@@ -264,12 +264,11 @@ to 10 CPUs and 16 GB by hand (November 2026). Instead:
 
 ## Updating orchard (done)
 
-`orchard` outside a checkout runs mainline (`~/.cache/orchard/orchard-main`).
-It used to fetch `main` before use when its last fetch was over ten minutes
-old, so any command, even `orchard --version`, could change the code and data
-a running build in another session reads. Mainline now changes only with
-`orchard update`; a checkout of your own (or one `orchard.local.toml` names)
-is yours to update with git. A fix for a running build means restarting it.
+`orchard` used to run a hidden mainline clone that fetched `main` before
+use, so any command could change the code a running build in another session
+reads. Now the `orchard` on PATH runs one nightly from start to end (see
+"Nightlies"), and a checkout's `bin/orchard` runs that checkout, which is
+yours to update with git. A fix for a running build means restarting it.
 
 ## Nightlies
 
@@ -288,8 +287,8 @@ it: it shares no patch layer with the arm64 platforms, so a nightly would
 only rebuild the same kernel.
 
 **Planned: orchard as versioned tooling** (agreed November 2026, after
-Flutter's SDK and channels). The hidden mainline clone (`orchard-main`) that
-supplies the build code today goes away.
+Flutter's SDK and channels). The hidden mainline clone (`orchard-main`) is
+gone (November 2026).
 
 - Channels: **nightly** for developers, **stable** (releases vX.Y.Z) for
   installing. A stable distribution release pins, and for now bundles, a
@@ -297,8 +296,8 @@ supplies the build code today goes away.
   previews on a nightly.
 - **Done, first part:** the `orchard` on PATH (`tools/launcher`) runs the
   newest nightly (looked up per command through `latest.json`, a shallow
-  clone of its tag in `tooling/NAME`), offline the newest cached one, before
-  the first nightly orchard main; `ORCHARD_VERSION` pins one. Nothing looks at
+  clone of its tag in `tooling/NAME`), offline the newest cached one, and
+  says so when neither exists; `ORCHARD_VERSION` pins one. Nothing looks at
   the current directory: a checkout's `bin/orchard` runs that checkout. Its
   kernels, m1n1 and tools then come from that nightly (same files, same
   source keys) and its Pongo too (`git describe` finds the nightly's tag).

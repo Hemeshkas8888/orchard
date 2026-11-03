@@ -52,10 +52,12 @@ class ToolingVersion(unittest.TestCase):
         self.assertEqual(offline.stdout.strip(), str(self.root / 'cache/tooling' / NAME))
         self.assertIn('no network', offline.stderr)
 
-    def test_before_the_first_nightly_orchard_main(self):
+    def test_without_a_nightly_reachable_or_cached_it_says_so(self):
         result = self.run_orchard('build', releases='nowhere')
-        self.assertEqual(result.stdout.strip(), str(self.root / 'cache/orchard-main'))
-        self.assertIn('no nightly published yet', result.stderr)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, '')
+        self.assertIn('no nightly reachable', result.stderr)
+        self.assertFalse((self.root / 'cache/orchard-main').exists())
 
     def test_a_pinned_version_and_an_unknown_one(self):
         result = self.run_orchard('build', releases='nowhere', ORCHARD_VERSION=NAME)
