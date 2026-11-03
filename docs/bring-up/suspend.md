@@ -63,6 +63,21 @@ poll of 360 s rarely collides; orchard's `30-orchard-battery-poll.conf` sets
    `device.toml`, with the evidence (boot ID, sleep length, wake IRQ) in the
    change.
 
+## Wake time
+
+No user-space code runs before the kernel's device resume ends, so any driver or
+console that blocks resume delays the screen.
+
+- **The console.** Everything logged while consoles are suspended is written out
+  at resume, with the CPU held, at 115200 baud on the device tree's `stdout-path`
+  UART: 90 KB took about 7.8 s on the iPad 6. orchard's platforms default to console
+  log level 4, so only errors go there; the kernel log itself stays complete. For a
+  serial cable, boot with `loglevel=7`. Do not measure wake time with
+  `pm_print_times` on: it logs every device.
+- **Drivers.** Resume callbacks must not wait for hardware: `apple_z2` booting the
+  controller inline cost 3.4 s. Read the times from the callbacks, or from key
+  timestamps: printk times inside resume do not show it.
+
 ## Testing rules that mattered
 
 - **Wait at least 45 s before pressing Power**, timed. Failures can take 5 to
