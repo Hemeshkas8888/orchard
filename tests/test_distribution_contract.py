@@ -81,6 +81,23 @@ class DistributionContract(unittest.TestCase):
             kernel.assert_not_called()
         self.assertEqual(document['platforms']['apple-16k']['kernel'], str(root.resolve()))
 
+    def test_inputs_records_how_it_got_each_component(self):
+        # A distribution build's own record only names its build script: the inputs document says the rest.
+        from orchard import explain
+        def resolve(*_, **__):
+            explain.note('m1n1: downloaded from orchard\'s nightly-1 (m1n1.bin, sha256 0)')
+            explain.command(['make', 'm1n1'])
+            return {'schema': 1, 'platforms': {}}
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'inputs.json'
+            with mock.patch.object(inputs, 'resolve', resolve), \
+                    mock.patch.object(sys, 'argv', ['orchard.inputs', '--output', str(output)]), \
+                    mock.patch('builtins.print'):
+                inputs.main()
+            document = json.loads(output.read_text())
+        self.assertEqual(document['produced'], [
+            {'note': 'm1n1: downloaded from orchard\'s nightly-1 (m1n1.bin, sha256 0)'}, {'run': ['make', 'm1n1']}])
+
     def test_unknown_platforms_are_refused(self):
         with self.assertRaisesRegex(ValueError, 'Unknown or unselected platform apple-64k'):
             inputs.resolve(['apple-64k'], {})

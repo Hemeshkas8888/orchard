@@ -10,7 +10,9 @@ of orchard's Python. This command resolves everything the distribution takes
 finished: per platform its kernel bundle (Image.gz, every board's DTB,
 modules; the nightly's when its source key matches, else built), its boards
 and their DTBs, and the shared m1n1, Pongo and static tools, plus the
-snapshot's revision. Paths point into orchard's cache and stay valid for the
+snapshot's revision, and under "produced" how each component was got (the
+commands that built it, or the nightly it was downloaded from; the steps
+`orchard build --explain` records). Paths point into orchard's cache and stay valid for the
 build. The other producers of the contract (docs/distribution-contract.md)
 take these paths as arguments.
 
@@ -99,10 +101,17 @@ def main():
         import os
         tree = args.kernel_tree or (Path(os.environ['ORCHARD_KERNEL_TREE']) if os.environ.get('ORCHARD_KERNEL_TREE')
                                     else None)
-        document = resolve(args.platform, explicit, shared={'m1n1': args.m1n1, 'pongo': args.pongo,
-                                                            'tools': args.tools}, kernel_tree=tree)
+        from . import explain
+        explain.start()
+        try:
+            document = resolve(args.platform, explicit, shared={'m1n1': args.m1n1, 'pongo': args.pongo,
+                                                                'tools': args.tools}, kernel_tree=tree)
+        finally:
+            steps = explain.stop()
     except ValueError as error:
         sys.exit(str(error))
+    # How each component was got: built (the commands), reused from the cache or downloaded from a nightly.
+    document['produced'] = steps
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(document, indent=2, sort_keys=True) + '\n')
     print(f'orchard inputs for {", ".join(document["platforms"])}: {args.output}')

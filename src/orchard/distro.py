@@ -129,7 +129,8 @@ def build(root, *, version=None, platforms=None, kernel_tree=None):
     # What orchard runs, as the plain command: the distribution composes the rest itself.
     (output.parent / f'{version}.commands.sh').write_text(
         '#!/bin/sh\n# What orchard build ran for this release (--explain prints it); the build script\n'
-        '# runs orchard\'s producers itself, from the snapshot ORCHARD_CHECKOUT names.\nset -eu\n'
+        '# runs orchard\'s producers itself, from the snapshot ORCHARD_CHECKOUT names; how orchard.inputs\n'
+        '# got each component (built, reused, or downloaded from a nightly) is in its JSON, under "produced".\nset -eu\n'
         f'cd {shlex.quote(str(root))}\n'
         f'{tree}ORCHARD_CHECKOUT={shlex.quote(str(ROOT))} ' + ' '.join(map(shlex.quote, argv)) + '\n')
     subprocess.run(argv, cwd=root, env=environment, check=True)
