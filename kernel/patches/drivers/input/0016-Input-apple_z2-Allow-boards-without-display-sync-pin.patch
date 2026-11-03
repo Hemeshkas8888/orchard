@@ -1,9 +1,15 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Martin=20Pu=C5=A1k=C3=A1=C4=8D?= <martin@icebear.sk>
 Date: Tue, 3 Nov 2026 14:51:06 +0100
-Subject: [PATCH] Input: apple_z2: Allow boards without display sync pinctrl
+Subject: [PATCH 16/17] Input: apple_z2: Allow boards without display sync
+ pinctrl
 
-J81 keeps display sync as an input and has no pinctrl states. devm_pinctrl_get() therefore returns -ENODEV before the existing optional-state handling runs. Treat that result as an absent display sync route while retaining other pinctrl errors.
+The J81 (iPad Air 2) keeps display sync an input and describes no
+pinctrl states for it, so devm_pinctrl_get() returns -ENODEV and probe
+fails before the existing handling of absent display-sync states runs.
+
+Treat -ENODEV from devm_pinctrl_get() as no display-sync route, as an
+absent state already is, and keep failing on other pinctrl errors.
 
 Assisted-by: LLM
 ---
@@ -11,10 +17,10 @@ Assisted-by: LLM
  1 file changed, 22 insertions(+), 17 deletions(-)
 
 diff --git a/drivers/input/touchscreen/apple_z2.c b/drivers/input/touchscreen/apple_z2.c
-index f68295c76..b74eed9c7 100644
+index 80e214f..c953a78 100644
 --- a/drivers/input/touchscreen/apple_z2.c
 +++ b/drivers/input/touchscreen/apple_z2.c
-@@ -4155,27 +4155,32 @@ static int apple_z2_probe(struct spi_device *spi)
+@@ -4269,27 +4269,32 @@ static int apple_z2_probe(struct spi_device *spi)
  					     "unable to get analog supply\n");
  
  		z2->sync_pinctrl = devm_pinctrl_get(dev);

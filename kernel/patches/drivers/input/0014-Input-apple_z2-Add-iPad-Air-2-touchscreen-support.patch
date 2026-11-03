@@ -7,8 +7,9 @@ The iPad Air 2's touchscreen is an N1 like the iPad 5's: iOS drives
 both with AppleMultitouchN1SPI, and its personality C1F15,2 ("J82",
 iPadOS 15.8) differs from the iPad 5's C1F15,1 only in fll-mval. The
 touch-size-id, parser type and options are the same, so the descriptor
-values are too. Add it as match data of the iPad 5's N1 runtime.
-The live J81 N1 family report is 22, not the iPad 5's 21.
+values are too, except the N1 family: the J81 reports 22, in iPadOS
+15.8.5 and in Linux, where the iPad 5 reports 21. Add it as match data
+of the iPad 5's N1 runtime.
 
 The Air 2 ADT gives display sync function code 2, while the iPad 5
 routes it to the controller with code 3. The live iPadOS pad mode has
