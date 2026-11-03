@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+From: Eduardo Martins <eduardo@martins.ws>
 Date: Mon, 2 Nov 2026 15:30:00 -0600
 Subject: [PATCH] PCI: pwrctrl: apple-wifi: Match the BCM4357
 
@@ -7,7 +7,7 @@ The d221 (iPhone X) BCM4357 powers with the same REG_ON and 100 ms
 stabilization as the j172 BCM4355, so map its PCI ID to that data. This
 lets the endpoint node claim pci14e4,440a and still bind pci-pwrctrl.
 
-Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Signed-off-by: Eduardo Martins <eduardo@martins.ws>
 Assisted-by: LLM
 ---
  drivers/pci/pwrctrl/pci-pwrctrl-apple-wifi.c | 4 ++++

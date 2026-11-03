@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+From: Eduardo Martins <eduardo@martins.ws>
 Date: Mon, 2 Nov 2026 11:02:22 -0600
 Subject: [PATCH] PCI: apple-h9p: Don't detach power domains that were never
  attached
@@ -16,7 +16,7 @@ controller described with one power domain: T8010 (ps_pcie) today, and
 the T8015 controller added next.
 
 [Orchard: split out of the T8015 support patch, message written in review]
-Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Signed-off-by: Eduardo Martins <eduardo@martins.ws>
 Assisted-by: LLM
 ---
  drivers/pci/controller/pcie-apple-h9p.c | 3 +++

@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+From: Eduardo Martins <eduardo@martins.ws>
 Date: Sat, 31 Oct 2026 16:40:31 -0500
 Subject: [PATCH] arm64: dts: apple: t8015: Model the PCIe clocks as clock
  gates
@@ -21,7 +21,7 @@ firmware left them on, and ps_pcie no longer keeps them in step with
 its own genpd state. It lands with the h9p T8015 match data, and the
 boot test reports 0x80148, 0x80320 and 0x80318 before and after.
 
-Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Signed-off-by: Eduardo Martins <eduardo@martins.ws>
 Assisted-by: LLM
 ---
  arch/arm64/boot/dts/apple/t8015-pmgr.dtsi | 17 ++++++++++-------

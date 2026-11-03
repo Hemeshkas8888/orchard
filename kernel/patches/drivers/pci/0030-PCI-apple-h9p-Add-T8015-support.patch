@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+From: Eduardo Martins <eduardo@martins.ws>
 Date: Mon, 2 Nov 2026 11:02:22 -0600
 Subject: [PATCH] PCI: apple-h9p: Add T8015 support
 
@@ -20,22 +20,22 @@ own lane setup, as on T8010.
 
 The registers, the sequences and the tunables come from AppleT8015PCIe
 in the iPhone X's iOS 16.7.16 kernelcache and from the D221 runtime ADT.
-The T8015 has no storage port and a per-port NVMMU, so the driver
-programs no NVMMU for it.
+The T8015 has no storage port, so the driver programs no NVMMU for it.
 
 Tested on a d221 (iPhone X GSM): the link trains to L0 (LTSSM 0x11) and
 the BCM4357 (14e4:440a) enumerates at 5.0 GT/s x1.
 
 [Orchard: dropped an unrelated change to the S8003 default link speed and
- moved the genpd teardown guard to its own patch; fixed a format specifier]
-Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+ moved the genpd teardown guard to its own patch; fixed a format specifier;
+ noted where the refclk-to-PERST delay comes from]
+Signed-off-by: Eduardo Martins <eduardo@martins.ws>
 Assisted-by: LLM
 ---
- drivers/pci/controller/pcie-apple-h9p.c | 406 +++++++++++++++++++++++-
- 1 file changed, 404 insertions(+), 2 deletions(-)
+ drivers/pci/controller/pcie-apple-h9p.c | 410 +++++++++++++++++++++++-
+ 1 file changed, 408 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/pci/controller/pcie-apple-h9p.c b/drivers/pci/controller/pcie-apple-h9p.c
-index 39eb0f7..9917844 100644
+index 39eb0f7..15f7a0c 100644
 --- a/drivers/pci/controller/pcie-apple-h9p.c
 +++ b/drivers/pci/controller/pcie-apple-h9p.c
 @@ -1,7 +1,7 @@
@@ -48,7 +48,7 @@ index 39eb0f7..9917844 100644
   *
   * The controller exposes an ECAM-compatible root complex after the SoC-specific
   * power, clock and PHY sequence has brought a port out of reset. The hardware
-@@ -146,6 +146,64 @@
+@@ -146,6 +146,68 @@
  #define H9P_LINK_SPEED_5GT		2
  #define H9P_LINK_SPEED_8GT		3
  
@@ -105,7 +105,11 @@ index 39eb0f7..9917844 100644
 +#define T8015_DWC_PORT3_CTL_SET		BIT(0)
 +#define T8015_DWC_PORT3_X1		0x0154
 +#define T8015_DWC_PORT3_X1_VALUE	0x44444444
-+/* d221's t-refclk-to-perst; iOS delays between REFCLK and PERST# */
++/*
++ * iOS waits t-refclk-to-perst between REFCLK and PERST#. 100 us is the D221
++ * ADT's value on both apcie ports (S8003 uses the same); the iPhone 8 and
++ * 8 Plus ADTs have not been checked.
++ */
 +#define T8015_REFCLK_TO_PERST_US	100
 +#define T8015_READY_TIMEOUT_US		250000
 +#define T8015_LINK_RETRAIN_TIMEOUT_US	100000
@@ -113,7 +117,7 @@ index 39eb0f7..9917844 100644
  /*
   * S8003 (A9, TSMC). The register map is T8010's, but iOS
   * (AppleS800xPCIe/AppleS8003PCIe in the iPad6,11 iOS 16.7.10 kernelcache,
-@@ -432,6 +490,84 @@ static const struct apple_h9p_tunable s8003_port_tunables[] = {
+@@ -432,6 +494,84 @@ static const struct apple_h9p_tunable s8003_port_tunables[] = {
  	{ 0x0140, 0x0073ffff, 0x00704c4b },
  };
  
@@ -198,7 +202,7 @@ index 39eb0f7..9917844 100644
  struct apple_h9p_tunables {
  	const struct apple_h9p_tunable *regs;
  	unsigned int count;
-@@ -2017,6 +2153,254 @@ static int apple_t8010_setup_common(struct apple_h9p_pcie *pcie)
+@@ -2017,6 +2157,254 @@ static int apple_t8010_setup_common(struct apple_h9p_pcie *pcie)
  	return 0;
  }
  
@@ -453,14 +457,14 @@ index 39eb0f7..9917844 100644
  /* Read-modify-write every entry, as iOS does, even when it already matches. */
  static void apple_t7000_write_tunables(void __iomem *base,
  				       const struct apple_h9p_tunable *tunables,
-@@ -3224,6 +3608,23 @@ static const struct apple_h9p_hw apple_h9p_hw_j172 = {
+@@ -3224,6 +3612,23 @@ static const struct apple_h9p_hw apple_h9p_hw_j172 = {
  	.j172_bridge_quirk = true,
  };
  
 +/*
-+ * The T8015 has a per-port NVMMU window and no storage port, so the
-+ * controller has no NVMMU for this driver to program and the per-port
-+ * interrupts are left to the generic path.
++ * The T8015 has no storage port, so the controller has no NVMMU for this
++ * driver to program, and the per-port interrupts are left to the generic
++ * path.
 + */
 +static const struct apple_h9p_hw apple_h9p_hw_t8015 = {
 +	.setup_common = apple_t8015_setup_common,
@@ -477,7 +481,7 @@ index 39eb0f7..9917844 100644
  static const struct apple_h9p_hw apple_h9p_hw_s8003 = {
  	.parse = apple_s8003_parse,
  	.setup_common = apple_s8003_setup_common,
-@@ -3246,6 +3647,7 @@ static const struct apple_h9p_hw apple_h9p_hw_s8003 = {
+@@ -3246,6 +3651,7 @@ static const struct apple_h9p_hw apple_h9p_hw_s8003 = {
  static const struct of_device_id apple_h9p_pcie_of_match[] = {
  	{ .compatible = "apple,s8003-pcie", .data = &apple_h9p_hw_s8003 },
  	{ .compatible = "apple,j172-pcie", .data = &apple_h9p_hw_j172 },

@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+From: Eduardo Martins <eduardo@martins.ws>
 Date: Mon, 2 Nov 2026 11:00:00 -0600
 Subject: [PATCH] arm64: dts: apple: t8015: Enable the PCIe controller on the
  D221
@@ -12,7 +12,7 @@ The Wi-Fi port's DART must be enabled as well: the h9p driver reloads its
 configuration by hand, and a disabled DART node has no platform device to
 find, which the driver reports as a silent -EPROBE_DEFER.
 
-Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Signed-off-by: Eduardo Martins <eduardo@martins.ws>
 Assisted-by: LLM
 ---
  arch/arm64/boot/dts/apple/t8015-d221.dts | 8 ++++++++

@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+From: Eduardo Martins <eduardo@martins.ws>
 Date: Sat, 31 Oct 2026 16:41:07 -0500
 Subject: [PATCH] arm64: dts: apple: t8015-x: Describe the Wi-Fi port
 
@@ -17,7 +17,7 @@ with dart-apcie3. The port is labelled port03 so the board file can add
 the endpoint under it, which the power-control patch that follows does; the BCM4357 enumerates as 14e4:440a.
 
 [Orchard: labelled the root port port03 for the board's endpoint node]
-Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Signed-off-by: Eduardo Martins <eduardo@martins.ws>
 Assisted-by: LLM
 ---
  arch/arm64/boot/dts/apple/t8015-x.dtsi | 26 ++++++++++++++++++++++++++

@@ -8,7 +8,7 @@ PCIe bring-up did, but the A11 layout differs from it in several places.
 
 The values below are from the runtime ADT of one `iPhone10,6` (`d221`),
 firmware `iBoot-8422.142.2.700.1`. The property and node names used in this
-file (`rc`, `phy`, `phy-ip`, `nvmmu`, `portN`) follow the driver and this
+file (`rc`, `phy`, `phy-ip`, `portN`) follow the driver and this
 repository; they are not ADT properties, which are unnamed.
 
 ## Host bridge (`apcie`)
@@ -20,17 +20,17 @@ repository; they are not ADT properties, which are unnamed.
 | `rc` | `0x600000000` (0x50000) |
 | `phy` | `0x600080000` (0x4000) |
 | `phy-ip` | `0x6000c0000` (0x40000) |
-| port regs | `0x60N000000` + nvmmu at `0x60N004000`, N = 1..4, each 0x4000 |
+| port regs | `0x60N000000`, N = 1..4, each 0x4000 |
 | interrupts (SPI) | 340, 343, 346, 349 (ports 0–3) |
 | `clock-gates` | 56, 57, 58 |
 | `power-gates` | 56 |
 | MSI | address `0xbffff000`, vector offset 352 |
 | `perst-to-refclk-delay-us` | 60 |
 
-The ADT lists a 0x4000 window at `0x60N004000` next to each port's register
-block at `0x60N000000`. This series reads that window as a per-port NVMMU;
-that is an inference, not an ADT property name. The T8010 layout carries a
-single `nvmmu` window at port 0 + 0x4000 instead.
+The ADT also lists a 0x4000 window at `0x60N004000` next to each port's
+register block. Nothing identifies it: the ADT entries are unnamed and
+"nvmmu" does not occur in the iOS 16.7 d221 kernelcache. The device tree
+leaves it out until something uses it.
 
 The ADT also carries the SoC tunables this controller needs:
 `apcie-common-tunables`, `apcie-phy-tunables`, and per-bridge
@@ -88,3 +88,9 @@ T8015 card-detect semantic, not a failure. The SMC `gP0e` rail is active-high.
 2. brcmfmac has no BCM4357 (`14e4:440a`) entry, so the Wi-Fi driver side is
    still missing; that is a linux-wireless topic and does not block the PCIe
    series.
+3. DMA translation for the Wi-Fi port: at probe, `apple-dart 604008000.iommu`
+   reports `translation setup for streams 1 failed: -5` and `blocking DMA for
+   streams 1`, with an `iommu_setup_default_domain` warning from
+   `apple_h9p_pcie_probe`. Enumeration is not affected, but the endpoint has
+   no working DMA mapping, so this has to be fixed before brcmfmac can run
+   (seen on a d221 with the series at a538a0f).

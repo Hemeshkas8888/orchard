@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+From: Eduardo Martins <eduardo@martins.ws>
 Date: Sat, 31 Oct 2026 16:40:31 -0500
 Subject: [PATCH] arm64: dts: apple: t8015: Add the PCIe DARTs
 
@@ -15,7 +15,7 @@ error-reflector are carried as the ADT gives them.
 They are disabled by default; the d221 board enables dart-apcie3 for the
 Wi-Fi.
 
-Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Signed-off-by: Eduardo Martins <eduardo@martins.ws>
 Assisted-by: LLM
 ---
  arch/arm64/boot/dts/apple/t8015.dtsi | 28 ++++++++++++++++++++++++++++

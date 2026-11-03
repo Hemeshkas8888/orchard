@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+From: Eduardo Martins <eduardo@martins.ws>
 Date: Mon, 2 Nov 2026 13:10:00 -0600
 Subject: [PATCH] arm64: dts: apple: t8015: Add the SMC GPIO controller
 
@@ -9,14 +9,14 @@ apple,smc-gpio child. Add it, so boards can refer to these lines; the
 iPhone X powers its Wi-Fi module from one of them.
 
 [Orchard: moved from the t8015-x Wi-Fi power patch to the SoC file]
-Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Signed-off-by: Eduardo Martins <eduardo@martins.ws>
 Assisted-by: LLM
 ---
  arch/arm64/boot/dts/apple/t8015.dtsi | 6 ++++++
  1 file changed, 6 insertions(+)
 
 diff --git a/arch/arm64/boot/dts/apple/t8015.dtsi b/arch/arm64/boot/dts/apple/t8015.dtsi
-index 6f07e9a..893ca87 100644
+index 0cf1942..155adba 100644
 --- a/arch/arm64/boot/dts/apple/t8015.dtsi
 +++ b/arch/arm64/boot/dts/apple/t8015.dtsi
 @@ -616,6 +616,12 @@

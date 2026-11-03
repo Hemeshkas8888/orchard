@@ -1,32 +1,32 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+From: Eduardo Martins <eduardo@martins.ws>
 Date: Sat, 31 Oct 2026 16:40:52 -0500
 Subject: [PATCH] arm64: dts: apple: t8015: Add the PCIe host bridge
 
-The A11 has the same four-port H8P/H9P root complex as the A10, but with a
-per-port NVMMU window and no storage port. The runtime ADT places the ECAM
-window at 0x610000000, the port registers at 0x60N000000 with a 0x4000
-window at 0x60N004000, and the PHY at 0x600080000. The four port state
-interrupts are 340/343/346/349, and the MSI block starts at 352.
+The A11 has the same four-port H8P/H9P root complex as the A10, but no
+storage port. The runtime ADT places the ECAM window at 0x610000000, the
+root complex block at 0x600000000, the PHY at 0x600080000 and 0x6000c0000,
+and the port registers at 0x60N000000. The four port state interrupts are
+340/343/346/349, and the MSI block starts at 352.
 
-The ADT reg entries are unnamed, so the portN and portN-nvmmu names are
-this series' reading of that layout rather than ADT properties; the driver
-does not consume them yet.
+The ADT also lists a 0x4000 window at 0x60N004000 next to each port;
+nothing identifies it, and the driver does not use it, so it is left out.
 
 Describe the controller but leave it disabled by default; the d221 board
 enables it.
 
-Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+[Orchard: left out the four unidentified 0x60N004000 windows; reg order as on T8010]
+Signed-off-by: Eduardo Martins <eduardo@martins.ws>
 Assisted-by: LLM
 ---
- arch/arm64/boot/dts/apple/t8015.dtsi | 50 ++++++++++++++++++++++++++++
- 1 file changed, 50 insertions(+)
+ arch/arm64/boot/dts/apple/t8015.dtsi | 43 ++++++++++++++++++++++++++++
+ 1 file changed, 43 insertions(+)
 
 diff --git a/arch/arm64/boot/dts/apple/t8015.dtsi b/arch/arm64/boot/dts/apple/t8015.dtsi
-index 3ddce22..6f07e9a 100644
+index 3ddce22..0cf1942 100644
 --- a/arch/arm64/boot/dts/apple/t8015.dtsi
 +++ b/arch/arm64/boot/dts/apple/t8015.dtsi
-@@ -725,6 +725,56 @@
+@@ -725,6 +725,49 @@
  			power-domain-names = "ans", "apcie0";
  			resets = <&ps_ans2>;
  		};
@@ -36,22 +36,15 @@ index 3ddce22..6f07e9a 100644
 +			device_type = "pci";
 +
 +			reg = <0x6 0x10000000 0x0 0x1000000>,
-+			      <0x6 0x01000000 0x0 0x4000>,
-+			      <0x6 0x01004000 0x0 0x4000>,
-+			      <0x6 0x02000000 0x0 0x4000>,
-+			      <0x6 0x02004000 0x0 0x4000>,
-+			      <0x6 0x03000000 0x0 0x4000>,
-+			      <0x6 0x03004000 0x0 0x4000>,
-+			      <0x6 0x04000000 0x0 0x4000>,
-+			      <0x6 0x04004000 0x0 0x4000>,
 +			      <0x6 0x00000000 0x0 0x50000>,
 +			      <0x6 0x00080000 0x0 0x4000>,
-+			      <0x6 0x000c0000 0x0 0x40000>;
-+			reg-names = "config", "port0", "port0-nvmmu",
-+				    "port1", "port1-nvmmu",
-+				    "port2", "port2-nvmmu",
-+				    "port3", "port3-nvmmu",
-+				    "rc", "phy", "phy-ip";
++			      <0x6 0x000c0000 0x0 0x40000>,
++			      <0x6 0x01000000 0x0 0x4000>,
++			      <0x6 0x02000000 0x0 0x4000>,
++			      <0x6 0x03000000 0x0 0x4000>,
++			      <0x6 0x04000000 0x0 0x4000>;
++			reg-names = "config", "rc", "phy", "phy-ip",
++				    "port0", "port1", "port2", "port3";
 +
 +			interrupt-parent = <&aic>;
 +			interrupts = <AIC_IRQ 340 IRQ_TYPE_LEVEL_HIGH>,

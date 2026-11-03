@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+From: Eduardo Martins <eduardo@martins.ws>
 Date: Mon, 2 Nov 2026 13:10:00 -0600
 Subject: [PATCH] arm64: dts: apple: t8015-d221: Power the Wi-Fi endpoint
 
@@ -19,7 +19,7 @@ j172 one this driver already ships.
 [Orchard: moved the regulator and endpoint from t8015-x.dtsi to the d221
  board file, as the A10 boards do, and the SMC GPIO controller to its own
  patch]
-Signed-off-by: Eduardo Martins <372861+edulmartins@users.noreply.github.com>
+Signed-off-by: Eduardo Martins <eduardo@martins.ws>
 Assisted-by: LLM
 ---
  arch/arm64/boot/dts/apple/t8015-d221.dts | 18 ++++++++++++++++++
