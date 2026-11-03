@@ -28,6 +28,8 @@ work. When a rule and your task conflict, ask the person you work for.
   Signed-off-by, the author from the global git config.
 - When it works on hardware, `tools/kernel-tree/export.py` turns the branch
   into orchard's patch files (defconfig changes become orchard's config).
+  Don't pick or reserve patch numbers: a branch needs none, and export
+  numbers its patches after those already in each directory.
   Until the switch, orchard's patch files are the source of truth: the
   `main` branches of OrchardLinux/linux and m1n1 are generated from them by
   `tools/kernel-tree/regenerate` (which refuses a branch with commits it did
