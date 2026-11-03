@@ -20,6 +20,7 @@ On J81, a 30-second swipe went from one short contact per second to
 updates and no frame errors.
 
 [Orchard: selected by match data instead of the J81 compatible]
+Signed-off-by: Martin Puškáč <martin@icebear.sk>
 Assisted-by: LLM
 ---
  drivers/input/touchscreen/apple_z2.c | 25 +++++++++++++++++++++++--

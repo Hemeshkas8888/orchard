@@ -11,6 +11,7 @@ fails before the existing handling of absent display-sync states runs.
 Treat -ENODEV from devm_pinctrl_get() as no display-sync route, as an
 absent state already is, and keep failing on other pinctrl errors.
 
+Signed-off-by: Martin Puškáč <martin@icebear.sk>
 Assisted-by: LLM
 ---
  drivers/input/touchscreen/apple_z2.c | 39 ++++++++++++++++------------
