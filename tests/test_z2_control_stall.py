@@ -104,9 +104,10 @@ static void apple_z2_release_contacts(struct apple_z2 *z) { assert(z->io_lock); 
         program += r'''
 static void sample(struct apple_z2 *z, unsigned long now) { jiffies=now; }
 int main(int argc, char **argv) {
-    const struct apple_z2_chip_info supported={true}, other={false};
-    struct spi_device spi={.irq=78};
-    struct apple_z2 z={.info=&supported,.protocol_state=APPLE_Z2_STATE_REPORTS_READY,
+    /* static: the stubs reach z through a global (gcc 13+ -Wdangling-pointer) */
+    static const struct apple_z2_chip_info supported={true}, other={false};
+    static struct spi_device spi={.irq=78};
+    static struct apple_z2 z={.info=&supported,.protocol_state=APPLE_Z2_STATE_REPORTS_READY,
         .booted=true,.irq_on=true,.runtime_control_reply=true,.spidev=&spi};
     unsigned i;
     assert(argc==2); current=&z;
