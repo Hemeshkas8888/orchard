@@ -16,6 +16,7 @@ data (spi_v1).
 This also changes the byte-wide path of the T7000 iPhone 6 (n61), whose
 touch works on the previous path; it has not been re-tested there.
 
+Signed-off-by: Martin Puškáč <martin@icebear.sk>
 Assisted-by: LLM
 ---
  drivers/spi/spi-apple.c | 50 ++++++++++++++++++++++++++++++++---------
