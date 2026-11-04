@@ -17,7 +17,7 @@ behavior. Hardware observations do not prove electrical power-off or the
 final executed path.
 
 [Orchard: from stuart902/linux 778174c50d5fd6b36849f9eea728a6811b1b6e9e;
-consolidated export, production source unchanged.]
+consolidated export; MODULE_AUTHOR names the author.]
 
 Assisted-by: LLM
 ---
@@ -60,7 +60,7 @@ index e31cab4ba..b36210828 100644
  obj-$(CONFIG_POWER_RESET_AT91_RESET) += at91-reset.o
 diff --git a/drivers/power/reset/apple-d2365-poweroff.c b/drivers/power/reset/apple-d2365-poweroff.c
 new file mode 100644
-index 000000000..e722d27c8
+index 000000000..a48710526
 --- /dev/null
 +++ b/drivers/power/reset/apple-d2365-poweroff.c
 @@ -0,0 +1,449 @@
@@ -511,5 +511,5 @@ index 000000000..e722d27c8
 +module_platform_driver(apple_d2365_poweroff_driver);
 +
 +MODULE_DESCRIPTION("Apple D2365 PMIC direct power-off driver");
-+MODULE_AUTHOR("Codex <codex@openai.com>");
++MODULE_AUTHOR("Stuart Fraser <me@stuartfraser.ca>");
 +MODULE_LICENSE("GPL");
