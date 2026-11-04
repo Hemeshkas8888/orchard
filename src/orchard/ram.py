@@ -4,6 +4,7 @@ Device startup belongs to the caller-provided /init. Component build/cache
 orchestration lives in build.py; compiler recipes remain hardware-owned.
 Device confirmation and upload live in boot.py.
 """
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -262,32 +263,29 @@ def _build_directory(directory, *, hardware, cache, kernel, busybox, loader, pon
     return output
 
 
+@contextmanager
 def with_firmware(output, board, *, hardware=None, cache=None):
-    """OUTPUT's payload plus BOARD's firmware as a second initramfs, in the private cache.
+    """OUTPUT's payload plus BOARD's firmware as a second initramfs, for one boot.
 
     Linux unpacks concatenated initramfs archives in order, so the platform
     payload stays as built. Firmware is downloaded once (IPSW byte ranges) and
-    never written to the project directory.
+    never written to the project directory. The combined image is assembled
+    in a private temporary directory when the boot needs it (seconds) and
+    removed afterwards: nothing to keep, nothing to prune.
     """
     from . import firmware as firmwares
     from .image import initramfs
-    from .progress import Clock, Progress
     receipt = verify_ram(output)
     if board not in receipt['boards']:
         raise ValueError(f'This payload is for {receipt["platform"]} ({", ".join(receipt["boards"])}), not {board}')
     recipe = firmwares.recipe_for(board, hardware)
+    from .progress import Clock, Progress
     outputs = firmwares.ensure(board, Clock(), Progress(), hardware=hardware)
     cache = Path(cache) if cache is not None else build.cache_root()
-    target = cache / 'private/ram' / f'{board}-{receipt["files"]["linux.bin"][:16]}'
-    if target.is_dir():
-        try:
-            verify_ram(target)
-            return target
-        except (OSError, ValueError):
-            shutil.rmtree(target)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.parent.chmod(0o700)
-    with tempfile.TemporaryDirectory(prefix='firmware-', dir=target.parent) as temporary:
+    private = cache / 'private'
+    private.mkdir(parents=True, exist_ok=True)
+    private.chmod(0o700)
+    with tempfile.TemporaryDirectory(prefix=f'ram-{board}-', dir=private) as temporary:
         work = Path(temporary)
         root = work / 'root'
         for item in recipe['outputs']:
@@ -310,8 +308,7 @@ def with_firmware(output, board, *, hardware=None, cache=None):
         layered.pop('overlay', None)
         layered['sources'] = {}
         (image / 'build.json').write_text(json.dumps(layered, indent=2) + '\n')
-        image.rename(target)
-    return target
+        yield image
 
 
 def verify_ram(output):
