@@ -5,7 +5,9 @@ Compile the driver's actual prepare/final functions against an in-memory bus.
 These tests establish software contracts, not PMIC electrical behavior.
 """
 from pathlib import Path
+import difflib
 import re
+import runpy
 import shutil
 import subprocess
 import tempfile
@@ -13,6 +15,8 @@ import unittest
 
 DRIVER = 'drivers/power/reset/apple-d2365-poweroff.c'
 ROOT = Path(__file__).resolve().parents[1]
+J71B_DTS = 'arch/arm64/boot/dts/apple/t8010-j71b.dts'
+J71B_UPSTREAM = 'cee9395acd8043be0644b25c34bfa86623f2b935'
 
 
 def patched_source(path):
@@ -39,6 +43,72 @@ def patched_source(path):
 
 def driver_source():
     return patched_source(DRIVER)
+
+
+def resolved_j71b_dts(extra_patches=()):
+    """Apply the real platform series to a pinned upstream file, offline."""
+    lock = dict(line.split('=', 1) for line in
+                (ROOT / 'kernel/upstream.lock').read_text().splitlines())
+    if lock['commit'] != J71B_UPSTREAM:
+        raise AssertionError('Refresh the J71b DTS fixture for kernel/upstream.lock')
+    series = runpy.run_path(str(ROOT / 'kernel/series.py'))['patches']('j71b')
+    with tempfile.TemporaryDirectory() as temporary:
+        source = Path(temporary) / J71B_DTS
+        source.parent.mkdir(parents=True)
+        shutil.copyfile(ROOT / 'tests/fixtures/d2365/t8010-j71b.dts', source)
+        for patch in [*series, *extra_patches]:
+            # Skip other files, but include deletions of this one as well.
+            lines = patch.read_text().splitlines()
+            if not {f'--- a/{J71B_DTS}', f'+++ b/{J71B_DTS}'}.intersection(lines):
+                continue
+            result = subprocess.run(['git', 'apply', f'--include={J71B_DTS}', str(patch)],
+                                    cwd=temporary, capture_output=True, text=True, timeout=10)
+            if result.returncode:
+                raise AssertionError(f'{patch}: {result.stdout}{result.stderr}')
+        return source.read_text()
+
+
+class D2365DeviceTree(unittest.TestCase):
+    def test_j71b_poweroff_node_has_supply(self):
+        source = resolved_j71b_dts()
+        self.assertIn('compatible = "apple,d2365-poweroff";', source)
+        self.assertIn('power-supplies = <&tristar_charger>;', source)
+        self.assertIn('maxim,tdm;', source)
+        self.assertIn('simple-audio-card,format = "dsp_a";', source)
+
+    def with_later_patch(self, before, after):
+        with tempfile.TemporaryDirectory() as temporary:
+            patch = Path(temporary) / '9999-later-j71b-change.patch'
+            patch.write_text(''.join(difflib.unified_diff(
+                before.splitlines(keepends=True), after.splitlines(keepends=True),
+                fromfile='a/' + J71B_DTS, tofile='b/' + J71B_DTS)))
+            return resolved_j71b_dts([patch])
+
+    def test_later_speaker_edit_preserves_poweroff_node(self):
+        before = resolved_j71b_dts()
+        after = before.replace('"J71b Speakers"', '"J71b Test Speakers"')
+        self.assertNotEqual(before, after)
+        # The last patch has only sound-card hunks, not the poweroff node.
+        resolved = self.with_later_patch(before, after)
+        self.assertEqual(resolved, after)
+        self.assertIn('compatible = "apple,d2365-poweroff";', resolved)
+        self.assertIn('power-supplies = <&tristar_charger>;', resolved)
+
+    def test_later_deletion_is_not_hidden_by_earlier_added_lines(self):
+        before = resolved_j71b_dts()
+        supply = '\t\tpower-supplies = <&tristar_charger>;\n'
+        self.assertIn(supply, before)
+        after = before.replace(supply, '')
+        resolved = self.with_later_patch(before, after)
+        self.assertEqual(resolved, after)
+        self.assertNotIn('power-supplies = <&tristar_charger>;', resolved)
+
+    def test_unapplicable_later_patch_is_reported(self):
+        source = resolved_j71b_dts()
+        before = source.replace('"J71b Speakers"', '"Missing Speakers"')
+        after = before.replace('"Missing Speakers"', '"Updated Speakers"')
+        with self.assertRaisesRegex(AssertionError, '9999-later-j71b-change.patch'):
+            self.with_later_patch(before, after)
 
 
 
@@ -101,11 +171,6 @@ class D2365Poweroff(unittest.TestCase):
         for platform in ('apple-16k', 'apple-4k'):
             config = (ROOT / 'kernel/configs' / platform / 'config').read_text()
             self.assertIn('CONFIG_POWER_RESET_APPLE_D2365=y\n', config)
-
-    def test_j71b_poweroff_node_has_supply(self):
-        source = patched_source('arch/arm64/boot/dts/apple/t8010-j71b.dts')
-        self.assertIn('compatible = "apple,d2365-poweroff";', source)
-        self.assertIn('power-supplies = <&tristar_charger>;', source)
 
     def test_both_prepare_and_atomic_final_handlers_are_registered(self):
         for mode, callback in (
