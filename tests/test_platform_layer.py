@@ -115,6 +115,14 @@ class PlatformLayer(unittest.TestCase):
                           base + 'kernel/drivers/nvme/host/nvme-core.ko',
                           base + 'kernel/drivers/nvme/host/nvme.ko'])
 
+    def test_the_initrd_refuses_a_kernel_without_a_storage_module(self):
+        from orchard.image.runtime import module_files
+        module_root = self.bundle / 'lib/modules' / RELEASE
+        (module_root / 'modules.dep').write_text('kernel/drivers/x.ko:\n')
+        release, files = module_files(self.bundle / 'lib/modules')
+        with self.assertRaisesRegex(ValueError, 'no storage module'):
+            platform.initrd(files, release, self.busybox)
+
     def test_the_same_inputs_give_the_same_archive(self):
         first, second = self.work / 'a', self.work / 'b'
         first.mkdir(), second.mkdir()
