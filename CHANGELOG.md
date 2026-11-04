@@ -24,6 +24,8 @@ entry. The iPad 6 gets speakers and an accelerometer for screen rotation.
 - iPad Air (J85): measured RAM-boot status documented. (Christopher M. Smith)
 - iPad Air 2 (J81): native-root boot, desktop and peripheral status recorded.
   (micro23)
+- iPad Air 2 (J81): the touchscreen works, with five fingers and no frame
+  errors on main's kernel. (Martin Puškáč)
 
 ### Install & launch
 
@@ -37,6 +39,8 @@ entry. The iPad 6 gets speakers and an accelerometer for screen rotation.
 
 ### Hardware
 
+- Add experimental PMIC power-off handling for iPad (6th generation, Wi-Fi;
+  iPad7,5 / J71b).
 - iPhone X (GSM, d221): internal storage through the Apple ANS2 NVMe driver
   (`CONFIG_NVME_APPLE`); the recovery's storage fence loads it, and the
   installer's partition writes are tested. No install yet. (Eduardo Martins)
@@ -49,7 +53,8 @@ entry. The iPad 6 gets speakers and an accelerometer for screen rotation.
   Alexandre's AOP work.
 - A10 (T8010): shared IOP mailbox for the GPU and AOP drivers; the NCO clock's
   boot rate is described per board.
-- iPad 6 (J71b): suspends and wakes with the Power button. A battery-gauge
+- iPad 6 (J71b): sleeps with the GPU desktop and wakes instantly with the Power
+  button, touch included. A battery-gauge
   poll that rebooted every HDQ-gauge iPad in sleep is fixed; the other A10
   boards carry the same support, untested.
 - Installed systems allow suspend only on boards whose device data says it

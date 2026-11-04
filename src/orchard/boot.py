@@ -24,8 +24,12 @@ def confirm_boot(*, mismatch=False):
         raise ValueError('Boot cancelled')
 
 
-def boot_ram(output, *, yes=False):
-    """Boot once via existing USB/Pongo transport. No recovery API required."""
+def boot_ram(output, *, yes=False, logs=None):
+    """Boot once via existing USB/Pongo transport. No recovery API required.
+
+    LOGS: where palera1n's log goes (default: OUTPUT), e.g. the project's
+    out/PLATFORM when OUTPUT is a temporary image.
+    """
     from .hardware import device as hardware_device
     from .apple import usb
     from .apple.boot import start_pongo
@@ -73,7 +77,7 @@ def boot_ram(output, *, yes=False):
         verify_ram(output)
         usb.selected(device['location'], ecid, chip=chip, board=board, mode=device['mode'])
         if device['mode'] == 'dfu':
-            with (output / 'palera1n.log').open('wb') as log:
+            with (Path(logs or output) / 'palera1n.log').open('wb') as log:
                 start_pongo(device, output / 'pongo.bin', log, print,
                             chip=chip, board=board, product='', seconds=60)
         usb.selected(device['location'], ecid, chip=chip, board=board)
@@ -103,11 +107,15 @@ def run_directory(directory, *, yes=False, build=True, device=None, platform=Non
         output = ram.build_directory(directory, platform=platform, **build_options)
     elif not (output / 'build.json').is_file():
         raise SystemExit(f'No {platform} build in {directory}; run without --no-build')
+    from contextlib import nullcontext
     if json.loads((output / 'build.json').read_text()).get('firmware'):
         if board is None:
             raise SystemExit('This payload adds the booted board\'s firmware: connect a described device or pass --device')
-        output = ram.with_firmware(output, board, hardware=build_options.get('hardware'))
-    try:
-        boot_ram(output, yes=yes)
-    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError, KeyboardInterrupt) as error:
-        raise SystemExit(f'{error}\nStopped. Inspect device state before any new boot attempt.')
+        payload = ram.with_firmware(output, board, hardware=build_options.get('hardware'))
+    else:
+        payload = nullcontext(output)
+    with payload as image:
+        try:
+            boot_ram(image, yes=yes, logs=output)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError, KeyboardInterrupt) as error:
+            raise SystemExit(f'{error}\nStopped. Inspect device state before any new boot attempt.')

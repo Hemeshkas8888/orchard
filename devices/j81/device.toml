@@ -37,6 +37,7 @@ caveats = [
   "Wi-Fi module rieslinga (BCM4350).",
   "Boot with Hoolock's prebuilt Pongo (orchard build --pongo FILE); Orchard's own Pongo does not boot on the A8X yet. See docs/integration/j81.md.",
   "Display, Wi-Fi, battery, backlight and buttons seen working on a J81 RAM boot on 2026-10-29.",
+  "Touch seen working on a J81 RAM boot on 2026-11-04 (five fingers, no frame errors); J82 and suspend untested. See docs/integration/j81.md.",
 ]
 wifi = true # Scan, association, DHCP and gateway ping seen working on a J81.
 usb_serial = true
@@ -45,7 +46,7 @@ usb_network = true
 # States: working, partial, untested, missing, none (features.toml).
 [features]
 display = "working"
-touch = "untested"
+touch = "working"
 wifi = "working"
 bluetooth = "untested"
 storage = "missing"

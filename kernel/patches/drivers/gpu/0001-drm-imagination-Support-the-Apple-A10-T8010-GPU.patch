@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Henrik Klee <henrik@goat-code.com>
 Date: Fri, 30 Oct 2026 01:18:20 +0800
-Subject: [PATCH 2/2] drm/imagination: Support the Apple A10 (T8010) GPU
+Subject: [PATCH] drm/imagination: Support the Apple A10 (T8010) GPU
 
 The A10's GPU is a Rogue core (CORE_ID 0x011b0602, legacy BVNC 13.10.6.2)
 whose firmware is Apple's GFX firmware, not Imagination's: it runs on an
@@ -33,40 +33,49 @@ replaces what is specific to IMG's firmware:
 - clock: devfreq (simple_ondemand) on the GPU's OPP table, which the
   bootloader fills from the Apple device tree, the OPP level being the
   performance state; apple_perf_state fixes one;
+- power management: runtime PM powers the GPU off one second after the
+  last job retires: the firmware is stopped, the coprocessor shut down and
+  its mailbox stopped, so the GPU power domain can go off; the next job
+  boots it again. Each job holds a runtime PM reference from submission
+  until its fence leaves the pending list. System sleep waits for the GPU
+  to go idle, stops the firmware and restarts it on resume, reusing the
+  recovery path; the scheduler workqueue is freezable so no job is
+  submitted in between;
 - static device information, as the firmware carries no IMG header; no
   core clock and no RGX interrupt on the AP side.
 
 Tested on the J71b (iPad 6): Hyprland through Zink and the Mesa G9P
-Vulkan driver at 60 fps with live blur.
+Vulkan driver at 60 fps with live blur; s2idle suspend and resume, and
+the GPU power domain off while idle.
 
 Assisted-by: LLM
 ---
  drivers/gpu/drm/imagination/Kconfig           |   12 +
  drivers/gpu/drm/imagination/Makefile          |    5 +
- drivers/gpu/drm/imagination/pvr_apple.c       | 1634 +++++++++++++++++
- drivers/gpu/drm/imagination/pvr_apple.h       |  142 ++
- .../gpu/drm/imagination/pvr_apple_layout.c    |  746 ++++++++
+ drivers/gpu/drm/imagination/pvr_apple.c       | 1824 +++++++++++++++++
+ drivers/gpu/drm/imagination/pvr_apple.h       |  146 ++
+ .../gpu/drm/imagination/pvr_apple_layout.c    |  746 +++++++
  .../gpu/drm/imagination/pvr_apple_layout.h    |   65 +
- drivers/gpu/drm/imagination/pvr_apple_queue.c |  149 ++
+ drivers/gpu/drm/imagination/pvr_apple_queue.c |  169 ++
  drivers/gpu/drm/imagination/pvr_context.c     |   66 +-
  drivers/gpu/drm/imagination/pvr_context.h     |    9 +
  drivers/gpu/drm/imagination/pvr_device.c      |   60 +-
  drivers/gpu/drm/imagination/pvr_device.h      |   14 +
- drivers/gpu/drm/imagination/pvr_drv.c         |   17 +
+ drivers/gpu/drm/imagination/pvr_drv.c         |   43 +
  drivers/gpu/drm/imagination/pvr_free_list.c   |   44 +-
  drivers/gpu/drm/imagination/pvr_hwrt.c        |   54 +-
  drivers/gpu/drm/imagination/pvr_hwrt.h        |    8 +
  drivers/gpu/drm/imagination/pvr_job.c         |   52 +-
  drivers/gpu/drm/imagination/pvr_mmu.c         |    8 +
  drivers/gpu/drm/imagination/pvr_power.c       |    4 +
- drivers/gpu/drm/imagination/pvr_queue.c       |   17 +
+ drivers/gpu/drm/imagination/pvr_queue.c       |   29 +-
  .../drm/imagination/pvr_rogue_fwif_stream.h   |   21 +
  drivers/gpu/drm/imagination/pvr_stream.c      |   10 +-
  drivers/gpu/drm/imagination/pvr_stream_defs.c |   98 +
  drivers/gpu/drm/imagination/pvr_stream_defs.h |    2 +
  drivers/gpu/drm/imagination/pvr_vm.c          |  106 +-
  drivers/gpu/drm/imagination/pvr_vm.h          |    2 +
- 25 files changed, 3277 insertions(+), 68 deletions(-)
+ 25 files changed, 3528 insertions(+), 69 deletions(-)
  create mode 100644 drivers/gpu/drm/imagination/pvr_apple.c
  create mode 100644 drivers/gpu/drm/imagination/pvr_apple.h
  create mode 100644 drivers/gpu/drm/imagination/pvr_apple_layout.c
@@ -74,7 +83,7 @@ Assisted-by: LLM
  create mode 100644 drivers/gpu/drm/imagination/pvr_apple_queue.c
 
 diff --git a/drivers/gpu/drm/imagination/Kconfig b/drivers/gpu/drm/imagination/Kconfig
-index 1fd4c63..d7f65a9 100644
+index 1fd4c635c2c9..d7f65a988e48 100644
 --- a/drivers/gpu/drm/imagination/Kconfig
 +++ b/drivers/gpu/drm/imagination/Kconfig
 @@ -19,6 +19,18 @@ config DRM_POWERVR
@@ -97,7 +106,7 @@ index 1fd4c63..d7f65a9 100644
  	tristate "KUnit tests for the drm powervr driver" if !KUNIT_ALL_TESTS
  	depends on DRM_POWERVR && KUNIT
 diff --git a/drivers/gpu/drm/imagination/Makefile b/drivers/gpu/drm/imagination/Makefile
-index a5c5e38..de8d1b1 100644
+index a5c5e386f16a..de8d1b1aefbb 100644
 --- a/drivers/gpu/drm/imagination/Makefile
 +++ b/drivers/gpu/drm/imagination/Makefile
 @@ -29,6 +29,11 @@ powervr-y := \
@@ -114,10 +123,10 @@ index a5c5e38..de8d1b1 100644
  
 diff --git a/drivers/gpu/drm/imagination/pvr_apple.c b/drivers/gpu/drm/imagination/pvr_apple.c
 new file mode 100644
-index 0000000..dca3536
+index 000000000000..c30519f699c2
 --- /dev/null
 +++ b/drivers/gpu/drm/imagination/pvr_apple.c
-@@ -0,0 +1,1634 @@
+@@ -0,0 +1,1824 @@
 +// SPDX-License-Identifier: GPL-2.0-only OR MIT
 +/*
 + * Apple A10 (T8010) support: Rogue fixed-function hardware driven by Apple's
@@ -213,6 +222,8 @@ index 0000000..dca3536
 +	void *heap;
 +	dma_addr_t heap_dma;
 +	bool booted;
++	bool fw_ready;		/* init data handed over once: runtime PM restarts it */
++	bool rtk_idle;		/* RTKit's mailbox stopped while the GPU is off */
 +
 +	struct mutex submit_lock;	/* job slots, rings, producer index, GPU VM */
 +	u32 last_seq;			/* last submitted compute job */
@@ -302,6 +313,9 @@ index 0000000..dca3536
 +static unsigned int pvr_apple_poll_us = 100;
 +module_param_named(apple_poll_us, pvr_apple_poll_us, uint, 0644);
 +MODULE_PARM_DESC(apple_poll_us, "Apple A10: microseconds between job completion checks (default 100)");
++
++/* Idle time before runtime PM powers the GPU off; tunable in sysfs. */
++#define PVR_APPLE_AUTOSUSPEND_MS	1000
 +
 +/*
 + * The firmware's debug flags: 1 SKU trace events, 2 cancel-path events, into
@@ -613,16 +627,15 @@ index 0000000..dca3536
 +	pvr_apple_opp_init(apple);
 +
 +	/*
-+	 * The firmware keeps its state only while powered, and suspending and
-+	 * re-initializing it is not implemented: keep the device active. This
-+	 * resumes it: power_on() runs here.
++	 * Each runtime resume boots the firmware again: idle for longer than
++	 * a frame or two before powering it off.
 +	 */
-+	pm_runtime_forbid(dev);
++	pm_runtime_set_autosuspend_delay(dev, PVR_APPLE_AUTOSUSPEND_MS);
 +
 +	return 0;
 +}
 +
-+static int pvr_apple_power_on(struct pvr_device *pvr_dev)
++static int pvr_apple_boot(struct pvr_device *pvr_dev)
 +{
 +	struct pvr_apple *apple = to_apple(pvr_dev);
 +	struct device *dev = apple_dev(apple);
@@ -632,6 +645,13 @@ index 0000000..dca3536
 +	if (apple->booted)
 +		return 0;
 +
++	/* The mailbox first: the firmware talks as soon as it runs */
++	if (apple->rtk_idle) {
++		err = apple_rtkit_reinit(apple->rtk);
++		if (err)
++			return err;
++		apple->rtk_idle = false;
++	}
 +	pvr_apple_set_window(apple);
 +	writel(readl(apple->fender + FENDER_RUN) | FENDER_RUN_ENABLE, apple->fender + FENDER_RUN);
 +
@@ -676,12 +696,63 @@ index 0000000..dca3536
 +	return err;
 +}
 +
++static int pvr_apple_fw_restart(struct pvr_apple *apple);
++static void pvr_apple_fw_stop(struct pvr_apple *apple);
++static int pvr_apple_wait_idle(struct pvr_apple *apple, unsigned int timeout_us);
++
++/*
++ * Runtime PM. Every job the firmware runs holds a runtime-PM reference from
++ * pvr_apple_run_job() until its fence leaves the pending list, so the GPU
++ * goes idle only with nothing in flight. Then the firmware is shut down and
++ * the GPU powered off; the next job boots it again with fresh init data, as
++ * after a reset. At probe, before the init data exists, power on only boots
++ * the firmware: pvr_apple_fw_init() follows.
++ */
++static int pvr_apple_power_on(struct pvr_device *pvr_dev)
++{
++	struct pvr_apple *apple = to_apple(pvr_dev);
++	int err;
++
++	if (!apple->fw_ready)
++		return pvr_apple_boot(pvr_dev);
++
++	mutex_lock(&apple->submit_lock);
++	err = apple->booted ? 0 : pvr_apple_fw_restart(apple);
++	mutex_unlock(&apple->submit_lock);
++	if (err)
++		dev_err(apple_dev(apple), "GPU did not start: %d\n", err);
++	else if (apple->devfreq)
++		devfreq_resume_device(apple->devfreq);
++	return err;
++}
++
 +static int pvr_apple_power_off(struct pvr_device *pvr_dev)
 +{
-+	/*
-+	 * The firmware keeps its init data across idle periods; powering down and
-+	 * re-initializing it is not implemented yet, so the GPU stays on.
-+	 */
++	struct pvr_apple *apple = to_apple(pvr_dev);
++	int err;
++
++	if (!apple->fw_ready)
++		return 0;
++
++	if (apple->devfreq)
++		devfreq_suspend_device(apple->devfreq);
++	mutex_lock(&apple->submit_lock);
++	/* Nothing holds a job reference, so this does not wait in practice. */
++	err = pvr_apple_wait_idle(apple, 1000000);
++	if (!err) {
++		pvr_apple_fw_stop(apple);
++		/* its mailbox would keep the GPU's power domain on */
++		apple->rtk_idle = !apple_rtkit_mbox_stop(apple->rtk);
++	}
++	mutex_unlock(&apple->submit_lock);
++	if (err) {
++		if (apple->devfreq)
++			devfreq_resume_device(apple->devfreq);
++		return -EBUSY;
++	}
++	/* the pollers run only while fences are pending; none are */
++	hrtimer_cancel(&apple->poll_timer);
++	cancel_delayed_work_sync(&apple->poll_work);
 +	return 0;
 +}
 +
@@ -966,11 +1037,24 @@ index 0000000..dca3536
 +	return READ_ONCE(apple->frag_events);
 +}
 +
++/* Drop the runtime-PM references of @n jobs that left the pending lists. */
++static void pvr_apple_jobs_retired(struct pvr_apple *apple, unsigned int n)
++{
++	struct device *dev = apple_dev(apple);
++
++	if (!n)
++		return;
++	pm_runtime_mark_last_busy(dev);
++	while (n--)
++		pm_runtime_put_autosuspend(dev);
++}
++
 +/* Signal the fences of retired jobs; poll again while any are pending. */
 +static void pvr_apple_poll_work(struct work_struct *work)
 +{
 +	struct pvr_apple *apple = container_of(work, struct pvr_apple, poll_work.work);
 +	struct pvr_apple_fence *fence, *tmp;
++	unsigned int retired = 0;
 +	bool pending = false;
 +	int engine;
 +
@@ -997,6 +1081,7 @@ index 0000000..dca3536
 +			list_del_init(&fence->node);
 +			dma_fence_signal_locked(&fence->base);
 +			dma_fence_put(&fence->base);
++			retired++;
 +		}
 +		pending |= !list_empty(&apple->pending[engine]);
 +	}
@@ -1005,6 +1090,7 @@ index 0000000..dca3536
 +		apple->busy_since = 0;
 +	}
 +	spin_unlock_irq(&apple->fence_lock);
++	pvr_apple_jobs_retired(apple, retired);
 +
 +	/* The firmware sends no completion message in this setup: poll. */
 +	if (pending)
@@ -1061,10 +1147,10 @@ index 0000000..dca3536
 +	}
 +}
 +
-+static void pvr_apple_cancel_fences(struct pvr_apple *apple, int error)
++static unsigned int pvr_apple_cancel_fences(struct pvr_apple *apple, int error)
 +{
 +	struct pvr_apple_fence *fence, *tmp;
-+
++	unsigned int cancelled = 0;
 +	int engine;
 +
 +	/* each rearms the other: the timer, the work, then a timer it started */
@@ -1078,9 +1164,12 @@ index 0000000..dca3536
 +			dma_fence_set_error(&fence->base, error);
 +			dma_fence_signal_locked(&fence->base);
 +			dma_fence_put(&fence->base);
++			cancelled++;
 +		}
 +	}
 +	spin_unlock_irq(&apple->fence_lock);
++	pvr_apple_jobs_retired(apple, cancelled);
++	return cancelled;
 +}
 +
 +/**
@@ -1212,7 +1301,9 @@ index 0000000..dca3536
 +	struct pvr_device *pvr_dev = apple->pvr_dev;
 +
 +	mutex_lock(&apple->submit_lock);
-+	if (!only_if || pvr_vm_get_page_table_root_addr(only_if) == apple->vm_root) {
++	/* Powered off, the firmware starts again on the kernel VM. */
++	if (apple->booted &&
++	    (!only_if || pvr_vm_get_page_table_root_addr(only_if) == apple->vm_root)) {
 +		if (pvr_apple_wait_idle(apple, 5000000))
 +			dev_err(apple_dev(apple), "jobs did not retire before a VM switch\n");
 +		pvr_apple_switch_vm(apple, pvr_dev->kernel_vm_ctx);
@@ -1585,6 +1676,42 @@ index 0000000..dca3536
 +	return 0;
 +}
 +
++/*
++ * Shut the firmware down and power the GPU off through state 0. A wedged or
++ * crashed firmware may not answer: go on regardless. apple_rtkit_shutdown()
++ * resets RTKit's state only once the firmware acknowledged; after a crash it
++ * stays "crashed" and refuses to boot, so reset it here.
++ */
++static void pvr_apple_fw_stop(struct pvr_apple *apple)
++{
++	lockdep_assert_held(&apple->submit_lock);
++	if (!apple->booted)
++		return;
++	pvr_apple_request_power_state(apple, 0);
++	if (apple_rtkit_shutdown(apple->rtk))
++		apple_rtkit_reinit(apple->rtk);
++	writel(readl(apple->fender + FENDER_RUN) & ~FENDER_RUN_ENABLE,
++	       apple->fender + FENDER_RUN);
++	apple->booted = false;
++}
++
++/* Boot the firmware from the kept image with fresh init data, as at probe. */
++static int pvr_apple_fw_restart(struct pvr_apple *apple)
++{
++	int err;
++
++	lockdep_assert_held(&apple->submit_lock);
++	/* The window as at probe: the image, zeroes after it, RTKit buffers anew */
++	memset(apple->win, 0, pvr_apple_layout_init_offset());
++	memcpy(apple->win, apple->fw_image, apple->fw_size);
++	apple->win_next = PVR_APPLE_FW_RUNTIME;
++	wmb();
++	err = pvr_apple_boot(apple->pvr_dev);
++	if (!err)
++		err = pvr_apple_fw_start(apple);
++	return err;
++}
++
 +int pvr_apple_fw_init(struct pvr_device *pvr_dev)
 +{
 +	struct pvr_apple *apple = to_apple(pvr_dev);
@@ -1599,6 +1726,7 @@ index 0000000..dca3536
 +		return err;
 +	}
 +	pvr_apple_devfreq_start(apple);
++	apple->fw_ready = true;
 +	return 0;
 +}
 +
@@ -1631,31 +1759,101 @@ index 0000000..dca3536
 +	apple->busy_since = 0;
 +	spin_unlock_irq(&apple->fence_lock);
 +
-+	if (apple->booted) {
-+		/*
-+		 * A wedged or crashed firmware may not answer: go on regardless.
-+		 * apple_rtkit_shutdown() resets RTKit's state only once the
-+		 * firmware acknowledged; after a crash it stays "crashed" and
-+		 * refuses to boot, so reset it here.
-+		 */
-+		pvr_apple_request_power_state(apple, 0);
-+		if (apple_rtkit_shutdown(apple->rtk))
-+			apple_rtkit_reinit(apple->rtk);
-+		writel(readl(apple->fender + FENDER_RUN) & ~FENDER_RUN_ENABLE,
-+		       apple->fender + FENDER_RUN);
-+		apple->booted = false;
-+	}
-+	/* The window as at probe: the image, zeroes after it, RTKit buffers anew */
-+	memset(apple->win, 0, pvr_apple_layout_init_offset());
-+	memcpy(apple->win, apple->fw_image, apple->fw_size);
-+	apple->win_next = PVR_APPLE_FW_RUNTIME;
-+	wmb();
-+	err = pvr_apple_power_on(pvr_dev);
-+	if (!err)
-+		err = pvr_apple_fw_start(apple);
++	pvr_apple_fw_stop(apple);
++	err = pvr_apple_fw_restart(apple);
 +	mutex_unlock(&apple->submit_lock);
 +	if (err)
 +		dev_err(dev, "GPU reset failed: %d\n", err);
++	return err;
++}
++
++/**
++ * pvr_apple_suspend() - Stop the GPU for system sleep
++ * @pvr_dev: Target device.
++ *
++ * The firmware keeps its state only while the GPU is powered, and the GPU
++ * power domain goes off in sleep. Retire every job (userspace and the job
++ * scheduler are frozen by now), then shut the firmware down and power the
++ * GPU off through state 0, as before a reset. Nothing the firmware held
++ * needs saving: pvr_apple_resume() hands it fresh init data, and each job
++ * carries the rest.
++ *
++ * Return: 0. A GPU that does not retire its jobs is stopped regardless and
++ * those jobs end with -ETIMEDOUT.
++ */
++int pvr_apple_suspend(struct pvr_device *pvr_dev)
++{
++	struct pvr_apple *apple = to_apple(pvr_dev);
++	struct device *dev = apple_dev(apple);
++	unsigned int n;
++	int err;
++
++	/*
++	 * Runtime-suspended: nothing runs and the firmware is off, so there is
++	 * nothing to stop. The PM core holds a runtime reference across sleep,
++	 * so pvr_apple_resume() sees the same status and leaves it off too.
++	 */
++	if (pm_runtime_status_suspended(dev))
++		return 0;
++
++	if (apple->devfreq)
++		devfreq_suspend_device(apple->devfreq);
++
++	mutex_lock(&apple->submit_lock);
++	err = pvr_apple_wait_idle(apple, 5000000);
++	mutex_unlock(&apple->submit_lock);
++	if (err)
++		dev_err(dev, "GPU did not retire its jobs before sleep\n");
++	/* Signal what retired, then end anything left */
++	mod_delayed_work(system_highpri_wq, &apple->poll_work, 0);
++	flush_delayed_work(&apple->poll_work);
++
++	mutex_lock(&apple->submit_lock);
++	n = pvr_apple_cancel_fences(apple, -ETIMEDOUT);
++	if (n)
++		dev_warn(dev, "%u GPU jobs ended unfinished before sleep\n", n);
++	dma_fence_put(apple->last_frag);
++	apple->last_frag = NULL;
++	dma_fence_put(apple->last_geom);
++	apple->last_geom = NULL;
++	spin_lock_irq(&apple->fence_lock);
++	apple->busy_since = 0;
++	spin_unlock_irq(&apple->fence_lock);
++	pvr_apple_fw_stop(apple);
++	mutex_unlock(&apple->submit_lock);
++
++	cancel_delayed_work_sync(&apple->poll_work);
++	hrtimer_cancel(&apple->poll_timer);
++	return 0;
++}
++
++/**
++ * pvr_apple_resume() - Start the GPU again after system sleep
++ * @pvr_dev: Target device.
++ *
++ * Boot the firmware from the kept image with fresh init data, as at probe.
++ * If the GPU was runtime-suspended before sleep, it stays off until the next
++ * job powers it on.
++ *
++ * Return: 0 once the GPU runs again, or a negative error. The GPU then stays
++ * off until a job times out and pvr_apple_reset() boots it again.
++ */
++int pvr_apple_resume(struct pvr_device *pvr_dev)
++{
++	struct pvr_apple *apple = to_apple(pvr_dev);
++	int err;
++
++	/* Runtime-suspended before sleep: the next job starts it. */
++	if (pm_runtime_status_suspended(apple_dev(apple)))
++		return 0;
++
++	mutex_lock(&apple->submit_lock);
++	err = pvr_apple_fw_restart(apple);
++	mutex_unlock(&apple->submit_lock);
++	if (err)
++		dev_err(apple_dev(apple), "GPU did not start after sleep: %d\n", err);
++	else if (apple->devfreq)
++		devfreq_resume_device(apple->devfreq);
 +	return err;
 +}
 +
@@ -1705,6 +1903,7 @@ index 0000000..dca3536
 +{
 +	struct pvr_apple *apple = to_apple(pvr_dev);
 +
++	apple->fw_ready = false;
 +	dma_fence_put(apple->last_frag);
 +	apple->last_frag = NULL;
 +	dma_fence_put(apple->last_geom);
@@ -1754,10 +1953,10 @@ index 0000000..dca3536
 +}
 diff --git a/drivers/gpu/drm/imagination/pvr_apple.h b/drivers/gpu/drm/imagination/pvr_apple.h
 new file mode 100644
-index 0000000..e3fea66
+index 000000000000..390bd2226fea
 --- /dev/null
 +++ b/drivers/gpu/drm/imagination/pvr_apple.h
-@@ -0,0 +1,142 @@
+@@ -0,0 +1,146 @@
 +/* SPDX-License-Identifier: GPL-2.0-only OR MIT */
 +/* Apple A10 (T8010): Rogue hardware behind Apple's GFX firmware. */
 +
@@ -1847,6 +2046,8 @@ index 0000000..e3fea66
 +void pvr_apple_fw_fini(struct pvr_device *pvr_dev);
 +struct pvr_gem_object *pvr_apple_pm_pages(struct pvr_device *pvr_dev, size_t size);
 +int pvr_apple_reset(struct pvr_device *pvr_dev);
++int pvr_apple_suspend(struct pvr_device *pvr_dev);
++int pvr_apple_resume(struct pvr_device *pvr_dev);
 +void pvr_apple_device_info_init(struct pvr_device *pvr_dev);
 +struct dma_fence *pvr_apple_submit_compute_job(struct pvr_device *pvr_dev,
 +					       struct pvr_vm_context *vm_ctx, u64 stream,
@@ -1873,6 +2074,8 @@ index 0000000..e3fea66
 +	return ERR_PTR(-E2BIG);
 +}
 +static inline int pvr_apple_reset(struct pvr_device *pvr_dev) { return -ENODEV; }
++static inline int pvr_apple_suspend(struct pvr_device *pvr_dev) { return 0; }
++static inline int pvr_apple_resume(struct pvr_device *pvr_dev) { return 0; }
 +static inline void pvr_apple_device_info_init(struct pvr_device *pvr_dev) {}
 +static inline int pvr_apple_vm_init(struct pvr_device *pvr_dev, struct pvr_vm_context *vm_ctx)
 +{
@@ -1902,7 +2105,7 @@ index 0000000..e3fea66
 +#endif /* PVR_APPLE_H */
 diff --git a/drivers/gpu/drm/imagination/pvr_apple_layout.c b/drivers/gpu/drm/imagination/pvr_apple_layout.c
 new file mode 100644
-index 0000000..e55f6b2
+index 000000000000..e55f6b269450
 --- /dev/null
 +++ b/drivers/gpu/drm/imagination/pvr_apple_layout.c
 @@ -0,0 +1,746 @@
@@ -2654,7 +2857,7 @@ index 0000000..e55f6b2
 +}
 diff --git a/drivers/gpu/drm/imagination/pvr_apple_layout.h b/drivers/gpu/drm/imagination/pvr_apple_layout.h
 new file mode 100644
-index 0000000..8fa529b
+index 000000000000..8fa529bb3bcb
 --- /dev/null
 +++ b/drivers/gpu/drm/imagination/pvr_apple_layout.h
 @@ -0,0 +1,65 @@
@@ -2725,10 +2928,10 @@ index 0000000..8fa529b
 +#endif /* PVR_APPLE_LAYOUT_H */
 diff --git a/drivers/gpu/drm/imagination/pvr_apple_queue.c b/drivers/gpu/drm/imagination/pvr_apple_queue.c
 new file mode 100644
-index 0000000..d8eb7ba
+index 000000000000..4100c40e6cba
 --- /dev/null
 +++ b/drivers/gpu/drm/imagination/pvr_apple_queue.c
-@@ -0,0 +1,149 @@
+@@ -0,0 +1,169 @@
 +// SPDX-License-Identifier: GPL-2.0-only OR MIT
 +/*
 + * Apple A10 (T8010) job queues.
@@ -2744,6 +2947,7 @@ index 0000000..d8eb7ba
 +#include "pvr_context.h"
 +#include "pvr_device.h"
 +#include "pvr_job.h"
++#include "pvr_power.h"
 +#include "pvr_queue.h"
 +#include "pvr_rogue_fwif_client.h"
 +
@@ -2753,9 +2957,8 @@ index 0000000..d8eb7ba
 +
 +#define APPLE_QUEUE_TIMEOUT_MS	5000
 +
-+static struct dma_fence *pvr_apple_run_job(struct drm_sched_job *sched_job)
++static struct dma_fence *pvr_apple_submit(struct pvr_job *job)
 +{
-+	struct pvr_job *job = container_of(sched_job, struct pvr_job, base);
 +	const struct rogue_fwif_cmd_compute *cmd = job->cmd;
 +
 +	if (job->type == DRM_PVR_JOB_TYPE_GEOMETRY || job->type == DRM_PVR_JOB_TYPE_FRAGMENT)
@@ -2766,6 +2969,26 @@ index 0000000..d8eb7ba
 +	return pvr_apple_submit_compute_job(job->pvr_dev, job->ctx->vm_ctx,
 +					    cmd->regs.cdm_ctrl_stream_base,
 +					    cmd->regs.cdm_context_state_base_addr);
++}
++
++/*
++ * The GPU stays powered while the firmware has the job: the reference taken
++ * here is dropped when the job's fence leaves the pending list (signalled or
++ * cancelled), or right away if the job never reached the firmware.
++ */
++static struct dma_fence *pvr_apple_run_job(struct drm_sched_job *sched_job)
++{
++	struct pvr_job *job = container_of(sched_job, struct pvr_job, base);
++	struct dma_fence *fence;
++	int err;
++
++	err = pvr_power_get(job->pvr_dev);
++	if (err)
++		return ERR_PTR(err);
++	fence = pvr_apple_submit(job);
++	if (IS_ERR(fence))
++		pvr_power_put(job->pvr_dev);
++	return fence;
 +}
 +
 +static enum drm_gpu_sched_stat pvr_apple_timedout_job(struct drm_sched_job *sched_job)
@@ -2879,7 +3102,7 @@ index 0000000..d8eb7ba
 +		drm_sched_job_cleanup(&job->base);
 +}
 diff --git a/drivers/gpu/drm/imagination/pvr_context.c b/drivers/gpu/drm/imagination/pvr_context.c
-index 406e075..8e4a7fa 100644
+index 406e0758e860..8e4a7fa8f1ac 100644
 --- a/drivers/gpu/drm/imagination/pvr_context.c
 +++ b/drivers/gpu/drm/imagination/pvr_context.c
 @@ -1,6 +1,7 @@
@@ -2943,7 +3166,7 @@ index 406e075..8e4a7fa 100644
  
  err_destroy_queues:
  	pvr_context_destroy_queues(ctx, true);
-@@ -373,6 +389,20 @@ err_free_ctx:
+@@ -373,6 +389,20 @@ int pvr_context_create(struct pvr_file *pvr_file, struct drm_pvr_ioctl_create_co
  	return err;
  }
  
@@ -2999,7 +3222,7 @@ index 406e075..8e4a7fa 100644
  	ctx = list_first_entry(&pvr_file->contexts, struct pvr_context, file_link);
  
 diff --git a/drivers/gpu/drm/imagination/pvr_context.h b/drivers/gpu/drm/imagination/pvr_context.h
-index 07afa17..77df094 100644
+index 07afa179cdf4..77df09495efa 100644
 --- a/drivers/gpu/drm/imagination/pvr_context.h
 +++ b/drivers/gpu/drm/imagination/pvr_context.h
 @@ -10,6 +10,7 @@
@@ -3026,7 +3249,7 @@ index 07afa17..77df094 100644
  
  static __always_inline struct pvr_queue *
 diff --git a/drivers/gpu/drm/imagination/pvr_device.c b/drivers/gpu/drm/imagination/pvr_device.c
-index 54fe418..af1a61b 100644
+index 54fe4180c73c..af1a61bdbb72 100644
 --- a/drivers/gpu/drm/imagination/pvr_device.c
 +++ b/drivers/gpu/drm/imagination/pvr_device.c
 @@ -1,6 +1,7 @@
@@ -3105,7 +3328,7 @@ index 54fe418..af1a61b 100644
  	err = pvr_request_firmware(pvr_dev);
  	if (err)
  		return err;
-@@ -725,6 +764,13 @@ err_vm_ctx_put:
+@@ -725,6 +764,13 @@ pvr_device_gpu_init(struct pvr_device *pvr_dev)
  static void
  pvr_device_gpu_fini(struct pvr_device *pvr_dev)
  {
@@ -3146,7 +3369,7 @@ index 54fe418..af1a61b 100644
  }
  
 diff --git a/drivers/gpu/drm/imagination/pvr_device.h b/drivers/gpu/drm/imagination/pvr_device.h
-index d51c57c..41272c0 100644
+index d51c57cf9332..41272c05c538 100644
 --- a/drivers/gpu/drm/imagination/pvr_device.h
 +++ b/drivers/gpu/drm/imagination/pvr_device.h
 @@ -68,8 +68,13 @@ struct pvr_fw_version {
@@ -3185,7 +3408,7 @@ index d51c57c..41272c0 100644
 +
  #endif /* PVR_DEVICE_H */
 diff --git a/drivers/gpu/drm/imagination/pvr_drv.c b/drivers/gpu/drm/imagination/pvr_drv.c
-index 5c965ef..5db075d 100644
+index 5c965ef0274f..02c4f85460bc 100644
 --- a/drivers/gpu/drm/imagination/pvr_drv.c
 +++ b/drivers/gpu/drm/imagination/pvr_drv.c
 @@ -3,6 +3,7 @@
@@ -3227,8 +3450,42 @@ index 5c965ef..5db075d 100644
  	{
  		.compatible = "thead,th1520-gpu",
  		.data = &pvr_device_data_pwrseq,
+@@ -1515,7 +1532,33 @@ static const struct of_device_id dt_match[] = {
+ };
+ MODULE_DEVICE_TABLE(of, dt_match);
+ 
++/*
++ * System sleep: the Apple GPU loses its firmware state when its power domain
++ * goes off, so it stops and restarts the firmware. Other GPUs keep relying on
++ * runtime PM as before.
++ */
++static int pvr_system_suspend(struct device *dev)
++{
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
++	struct pvr_device *pvr_dev = to_pvr_device(drm_dev);
++
++	if (!pvr_device_is_apple(pvr_dev))
++		return 0;
++	return pvr_apple_suspend(pvr_dev);
++}
++
++static int pvr_system_resume(struct device *dev)
++{
++	struct drm_device *drm_dev = dev_get_drvdata(dev);
++	struct pvr_device *pvr_dev = to_pvr_device(drm_dev);
++
++	if (!pvr_device_is_apple(pvr_dev))
++		return 0;
++	return pvr_apple_resume(pvr_dev);
++}
++
+ static const struct dev_pm_ops pvr_pm_ops = {
++	SYSTEM_SLEEP_PM_OPS(pvr_system_suspend, pvr_system_resume)
+ 	RUNTIME_PM_OPS(pvr_power_device_suspend, pvr_power_device_resume, pvr_power_device_idle)
+ };
+ 
 diff --git a/drivers/gpu/drm/imagination/pvr_free_list.c b/drivers/gpu/drm/imagination/pvr_free_list.c
-index e85cac8..48c4894 100644
+index e85cac83834c..48c48943b2ab 100644
 --- a/drivers/gpu/drm/imagination/pvr_free_list.c
 +++ b/drivers/gpu/drm/imagination/pvr_free_list.c
 @@ -1,6 +1,7 @@
@@ -3318,7 +3575,7 @@ index e85cac8..48c4894 100644
  	kfree(free_list);
  }
 diff --git a/drivers/gpu/drm/imagination/pvr_hwrt.c b/drivers/gpu/drm/imagination/pvr_hwrt.c
-index 05c68c7..1bfbcc8 100644
+index 05c68c78da22..1bfbcc8a5381 100644
 --- a/drivers/gpu/drm/imagination/pvr_hwrt.c
 +++ b/drivers/gpu/drm/imagination/pvr_hwrt.c
 @@ -86,7 +86,8 @@ hwrt_fini_kernel_structure(struct pvr_hwrt_dataset *hwrt)
@@ -3418,7 +3675,7 @@ index 05c68c7..1bfbcc8 100644
  	}
  
 diff --git a/drivers/gpu/drm/imagination/pvr_hwrt.h b/drivers/gpu/drm/imagination/pvr_hwrt.h
-index 676070b..c687f35 100644
+index 676070b20c3b..c687f353f15a 100644
 --- a/drivers/gpu/drm/imagination/pvr_hwrt.h
 +++ b/drivers/gpu/drm/imagination/pvr_hwrt.h
 @@ -49,6 +49,12 @@ struct pvr_hwrt_data {
@@ -3444,7 +3701,7 @@ index 676070b..c687f35 100644
  pvr_hwrt_dataset_create(struct pvr_file *pvr_file,
  			struct drm_pvr_ioctl_create_hwrt_dataset_args *args);
 diff --git a/drivers/gpu/drm/imagination/pvr_job.c b/drivers/gpu/drm/imagination/pvr_job.c
-index b8a58d8..6d0e876 100644
+index b8a58d817009..6d0e87694beb 100644
 --- a/drivers/gpu/drm/imagination/pvr_job.c
 +++ b/drivers/gpu/drm/imagination/pvr_job.c
 @@ -1,6 +1,7 @@
@@ -3575,7 +3832,7 @@ index b8a58d8..6d0e876 100644
  		dma_resv_add_fence(obj->resv, &job->base.s_fence->finished, usage);
  	}
 diff --git a/drivers/gpu/drm/imagination/pvr_mmu.c b/drivers/gpu/drm/imagination/pvr_mmu.c
-index 3cac482..9d5bce3 100644
+index 3cac482e1034..9d5bce3ebe3e 100644
 --- a/drivers/gpu/drm/imagination/pvr_mmu.c
 +++ b/drivers/gpu/drm/imagination/pvr_mmu.c
 @@ -1,6 +1,7 @@
@@ -3601,33 +3858,35 @@ index 3cac482..9d5bce3 100644
  	if (!READ_ONCE(pvr_dev->fw_dev.initialised))
  		goto err_drm_dev_exit;
 diff --git a/drivers/gpu/drm/imagination/pvr_power.c b/drivers/gpu/drm/imagination/pvr_power.c
-index eb4b6ec..0793bbd 100644
+index eb4b6ecdf4f4..57f4994c28f5 100644
 --- a/drivers/gpu/drm/imagination/pvr_power.c
 +++ b/drivers/gpu/drm/imagination/pvr_power.c
 @@ -434,6 +434,10 @@ pvr_power_device_idle(struct device *dev)
  	struct drm_device *drm_dev = platform_get_drvdata(plat_dev);
  	struct pvr_device *pvr_dev = to_pvr_device(drm_dev);
  
-+	/* Apple firmware power management is not implemented: stay active. */
++	/* Apple: every job holds a reference until it retires, so idle is idle. */
 +	if (pvr_device_is_apple(pvr_dev))
-+		return -EBUSY;
++		return 0;
 +
  	return pvr_power_is_idle(pvr_dev) ? 0 : -EBUSY;
  }
  
 diff --git a/drivers/gpu/drm/imagination/pvr_queue.c b/drivers/gpu/drm/imagination/pvr_queue.c
-index 24a8645..58be790 100644
+index 24a8645aa913..e5a1047b0dd8 100644
 --- a/drivers/gpu/drm/imagination/pvr_queue.c
 +++ b/drivers/gpu/drm/imagination/pvr_queue.c
-@@ -5,6 +5,7 @@
+@@ -4,7 +4,9 @@
+ #include <drm/drm_managed.h>
  #include <drm/gpu_scheduler.h>
  #include <linux/overflow.h>
++#include <linux/property.h>
  
 +#include "pvr_apple.h"
  #include "pvr_cccb.h"
  #include "pvr_context.h"
  #include "pvr_device.h"
-@@ -1145,6 +1146,9 @@ int pvr_queue_job_init(struct pvr_job *job, u64 drm_client_id)
+@@ -1145,6 +1147,9 @@ int pvr_queue_job_init(struct pvr_job *job, u64 drm_client_id)
  	struct pvr_queue *queue;
  	int err;
  
@@ -3637,7 +3896,7 @@ index 24a8645..58be790 100644
  	if (atomic_read(&job->ctx->faulty))
  		return -EIO;
  
-@@ -1198,6 +1202,11 @@ struct dma_fence *pvr_queue_job_arm(struct pvr_job *job)
+@@ -1198,6 +1203,11 @@ struct dma_fence *pvr_queue_job_arm(struct pvr_job *job)
   */
  void pvr_queue_job_cleanup(struct pvr_job *job)
  {
@@ -3649,7 +3908,7 @@ index 24a8645..58be790 100644
  	pvr_queue_fence_put(job->done_fence);
  	pvr_queue_fence_put(job->cccb_fence);
  	pvr_kccb_fence_put(job->kccb_fence);
-@@ -1301,6 +1310,9 @@ struct pvr_queue *pvr_queue_create(struct pvr_context *ctx,
+@@ -1301,6 +1311,9 @@ struct pvr_queue *pvr_queue_create(struct pvr_context *ctx,
  	if (WARN_ON(type >= sizeof(props)))
  		return ERR_PTR(-EINVAL);
  
@@ -3659,7 +3918,7 @@ index 24a8645..58be790 100644
  	switch (ctx->type) {
  	case DRM_PVR_CTX_TYPE_RENDER:
  		if (type != DRM_PVR_JOB_TYPE_GEOMETRY &&
-@@ -1453,6 +1465,11 @@ void pvr_queue_destroy(struct pvr_queue *queue, bool cleanup_queue_entity)
+@@ -1453,6 +1466,11 @@ void pvr_queue_destroy(struct pvr_queue *queue, bool cleanup_queue_entity)
  	if (!queue)
  		return;
  
@@ -3671,8 +3930,33 @@ index 24a8645..58be790 100644
  	mutex_lock(&queue->ctx->pvr_dev->queues.lock);
  	list_del_init(&queue->node);
  	mutex_unlock(&queue->ctx->pvr_dev->queues.lock);
+@@ -1485,6 +1503,9 @@ void pvr_queue_destroy(struct pvr_queue *queue, bool cleanup_queue_entity)
+  */
+ int pvr_queue_device_init(struct pvr_device *pvr_dev)
+ {
++	const struct pvr_device_data *data =
++		device_get_match_data(from_pvr_device(pvr_dev)->dev);
++	bool apple = IS_ENABLED(CONFIG_DRM_POWERVR_APPLE) && data && data->apple_fw;
+ 	int err;
+ 
+ 	INIT_LIST_HEAD(&pvr_dev->queues.active);
+@@ -1493,7 +1514,13 @@ int pvr_queue_device_init(struct pvr_device *pvr_dev)
+ 	if (err)
+ 		return err;
+ 
+-	pvr_dev->sched_wq = alloc_workqueue("powervr-sched", WQ_UNBOUND, 0);
++	/*
++	 * The Apple GPU stops its firmware for system sleep: no job may reach
++	 * it then, so its schedulers' work freezes with the system. Probe runs
++	 * this before pvr_device_init() sets device_data: read the match data.
++	 */
++	pvr_dev->sched_wq = alloc_workqueue("powervr-sched",
++					    WQ_UNBOUND | (apple ? WQ_FREEZABLE : 0), 0);
+ 	if (!pvr_dev->sched_wq)
+ 		return -ENOMEM;
+ 
 diff --git a/drivers/gpu/drm/imagination/pvr_rogue_fwif_stream.h b/drivers/gpu/drm/imagination/pvr_rogue_fwif_stream.h
-index 1c2c4eb..9e808c7 100644
+index 1c2c4ebedc25..9e808c73b2d0 100644
 --- a/drivers/gpu/drm/imagination/pvr_rogue_fwif_stream.h
 +++ b/drivers/gpu/drm/imagination/pvr_rogue_fwif_stream.h
 @@ -56,6 +56,17 @@
@@ -3711,7 +3995,7 @@ index 1c2c4eb..9e808c7 100644
   * Stream extension header - Compute 0
   */
 diff --git a/drivers/gpu/drm/imagination/pvr_stream.c b/drivers/gpu/drm/imagination/pvr_stream.c
-index 679aa61..7db6eb1 100644
+index 679aa618b7a9..7db6eb1f2945 100644
 --- a/drivers/gpu/drm/imagination/pvr_stream.c
 +++ b/drivers/gpu/drm/imagination/pvr_stream.c
 @@ -163,7 +163,8 @@ pvr_stream_process_ext_stream(struct pvr_device *pvr_dev,
@@ -3739,7 +4023,7 @@ index 679aa61..7db6eb1 100644
  		pvr_dev->stream_musthave_quirks[PVR_STREAM_TYPE_GEOM][0] |=
  			PVR_STREAM_EXTHDR_GEOM0_BRN49927;
 diff --git a/drivers/gpu/drm/imagination/pvr_stream_defs.c b/drivers/gpu/drm/imagination/pvr_stream_defs.c
-index f8bd1a8..9d90141 100644
+index f8bd1a8c01db..9d90141dd4d1 100644
 --- a/drivers/gpu/drm/imagination/pvr_stream_defs.c
 +++ b/drivers/gpu/drm/imagination/pvr_stream_defs.c
 @@ -1,6 +1,7 @@
@@ -3852,7 +4136,7 @@ index f8bd1a8..9d90141 100644
 +	.dest_size = sizeof(struct pvr_apple_cmd_frag),
 +};
 diff --git a/drivers/gpu/drm/imagination/pvr_stream_defs.h b/drivers/gpu/drm/imagination/pvr_stream_defs.h
-index f33b821..6cf88a3 100644
+index f33b82165833..6cf88a339ace 100644
 --- a/drivers/gpu/drm/imagination/pvr_stream_defs.h
 +++ b/drivers/gpu/drm/imagination/pvr_stream_defs.h
 @@ -12,5 +12,7 @@ extern const struct pvr_stream_cmd_defs pvr_cmd_compute_stream;
@@ -3864,7 +4148,7 @@ index f33b821..6cf88a3 100644
  
  #endif /* PVR_STREAM_DEFS_H */
 diff --git a/drivers/gpu/drm/imagination/pvr_vm.c b/drivers/gpu/drm/imagination/pvr_vm.c
-index ceb7869..acef319 100644
+index ceb78694cd98..acef3197790a 100644
 --- a/drivers/gpu/drm/imagination/pvr_vm.c
 +++ b/drivers/gpu/drm/imagination/pvr_vm.c
 @@ -1,6 +1,7 @@
@@ -3972,7 +4256,7 @@ index ceb7869..acef319 100644
  
  	if (err)
  		return err;
-@@ -763,6 +781,31 @@ err_cleanup:
+@@ -763,6 +781,31 @@ pvr_vm_map(struct pvr_vm_context *vm_ctx, struct pvr_gem_object *pvr_obj,
  	return err;
  }
  
@@ -4080,7 +4364,7 @@ index ceb7869..acef319 100644
  
  	return NULL;
 diff --git a/drivers/gpu/drm/imagination/pvr_vm.h b/drivers/gpu/drm/imagination/pvr_vm.h
-index b0528df..9555094 100644
+index b0528dffa7f1..9555094e1410 100644
 --- a/drivers/gpu/drm/imagination/pvr_vm.h
 +++ b/drivers/gpu/drm/imagination/pvr_vm.h
 @@ -38,6 +38,8 @@ struct pvr_vm_context *pvr_vm_create_context(struct pvr_device *pvr_dev,
@@ -4092,6 +4376,3 @@ index b0528df..9555094 100644
  int pvr_vm_unmap_obj(struct pvr_vm_context *vm_ctx,
  		     struct pvr_gem_object *pvr_obj,
  		     u64 device_addr, u64 size);
--- 
-2.54.0 (Apple Git-157)
-

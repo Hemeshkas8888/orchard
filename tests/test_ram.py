@@ -290,7 +290,7 @@ class RamTests(unittest.TestCase):
                 patch('orchard.devices.attached_board', return_value=None), \
                 self.assertRaisesRegex(SystemExit, 'Inspect device state'):
             boot.run_directory(self.base, yes=True)
-        upload.assert_called_once_with(built, yes=True)
+        upload.assert_called_once_with(built, yes=True, logs=built)
 
     def test_mismatch_confirmation_defaults_to_no(self):
         for answer in ('', 'n', 'no'):
@@ -536,18 +536,21 @@ class RamTests(unittest.TestCase):
         self.assertNotIn(b'firmware blob', gzip.decompress((output / 'initramfs.cpio.gz').read_bytes()))
         with patch.object(firmware, 'recipe_for', return_value=recipe) as recipe_for, \
                 patch.object(firmware, 'ensure', return_value=outputs) as ensure:
-            layered = ram.with_firmware(output, 'j71b', hardware=self.hardware, cache=self.base / 'shared-cache')
-            again = ram.with_firmware(output, 'j71b', hardware=self.hardware, cache=self.base / 'shared-cache')
+            with ram.with_firmware(output, 'j71b', hardware=self.hardware,
+                                   cache=self.base / 'shared-cache') as layered:
+                self.assertTrue(layered.is_relative_to(self.base / 'shared-cache/private'))
+                receipt = ram.verify_ram(layered)
+                self.assertEqual(receipt['boards'], ['j71b'])
+                image = (layered / 'linux.bin').read_bytes()
+                self.assertIn(gzip.compress(b'', mtime=0)[:3], image)  # gzip members of both layers
         recipe_for.assert_called_with('j71b', self.hardware)
         self.assertEqual(ensure.call_args.kwargs['hardware'], self.hardware)
-        self.assertEqual(layered, again)
-        self.assertTrue(layered.is_relative_to(self.base / 'shared-cache/private'))
-        receipt = ram.verify_ram(layered)
-        self.assertEqual(receipt['boards'], ['j71b'])
-        image = (layered / 'linux.bin').read_bytes()
-        self.assertIn(gzip.compress(b'', mtime=0)[:3], image)  # gzip members of both layers
+        # Assembled for the boot and gone after it: no copy with Apple's firmware stays behind.
+        self.assertFalse(layered.exists())
+        self.assertEqual(list((self.base / 'shared-cache/private').iterdir()), [])
         with self.assertRaisesRegex(ValueError, 'not n61'):
-            ram.with_firmware(output, 'n61', hardware=self.hardware, cache=self.base / 'shared-cache')
+            with ram.with_firmware(output, 'n61', hardware=self.hardware, cache=self.base / 'shared-cache'):
+                pass
 
     def test_explicit_hardware_override_takes_precedence_over_active_package(self):
         directory = self.base / 'use_cases/override'
@@ -570,7 +573,7 @@ class RamTests(unittest.TestCase):
             (directory / 'out/apple-4k/build.json').write_text('{"firmware": false}')
             boot.run_directory(directory)
         self.assertEqual(compose.call_args.kwargs['platform'], 'apple-4k')
-        upload.assert_called_once_with(directory / 'out/apple-4k', yes=False)
+        upload.assert_called_once_with(directory / 'out/apple-4k', yes=False, logs=directory / 'out/apple-4k')
 
     def test_run_without_build_needs_an_existing_build(self):
         with patch('orchard.devices.attached_board', return_value='j71b'), \
