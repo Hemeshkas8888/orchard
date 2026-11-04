@@ -48,7 +48,8 @@ entry. The iPad 6 gets speakers and an accelerometer for screen rotation.
   Alexandre's AOP work.
 - A10 (T8010): shared IOP mailbox for the GPU and AOP drivers; the NCO clock's
   boot rate is described per board.
-- iPad 6 (J71b): suspends and wakes with the Power button. A battery-gauge
+- iPad 6 (J71b): sleeps with the GPU desktop and wakes instantly with the Power
+  button, touch included. A battery-gauge
   poll that rebooted every HDQ-gauge iPad in sleep is fixed; the other A10
   boards carry the same support, untested.
 - Installed systems allow suspend only on boards whose device data says it

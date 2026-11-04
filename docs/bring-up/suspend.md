@@ -15,9 +15,10 @@ firmware sleep state. Three things must hold on every board:
    domain down, no wake interrupt arrives.
 2. **Nothing that cannot come back loses power.** Today the display pipe
    (adopted from iBoot: timings and panel link the driver cannot program from
-   scratch) and the GPU (firmware state the driver cannot restore yet) must
-   keep their domains. Without that, the deeper PM tests leave the screen
-   blank, or rendering dead after wake.
+   scratch) must keep its domains; without that, the deeper PM tests leave the
+   screen blank. A domain can go off once its driver restores what it held: the
+   A10 GPU driver stops and restarts its firmware over sleep, so `ps_gfx` has
+   no entry.
 3. **No driver touches suspended hardware.** Periodic work must stop between
    the freezer and resume: queue it on `system_freezable_wq`, or cancel it in
    the driver's suspend callback. Buses without `dev_pm_ops` for their
@@ -32,12 +33,10 @@ All in the kernel, nothing in user space:
 | `ps_gpio` always-on, manual PM | `t8010-pmgr.dtsi` | button wake |
 | `ps_disp0_fe`, `ps_disp0_be` always-on, manual PM | `t8010-pmgr.dtsi` | adopted display pipe |
 | `ps_dp` (iPads) / `ps_mipi_dsi` (iPhones, iPod) | `t8010-ipad6.dtsi` / `t8010-7.dtsi`, `t8010-n112.dts` | the panel link each family drives |
-| `ps_gfx` always-on, manual PM | `t8010-pmgr.dtsi` | GPU firmware state |
 | bq27xxx poll on `system_freezable_wq` | `drivers/power/supply/bq27xxx_battery.c` | the HDQ gauge poll reset the SoC in sleep |
 
 `apple,always-on` keeps a domain on while awake too, so this keeps state
-instead of saving power in suspend; the GPU domain stays on even when the
-system renders in software. Each entry goes once its driver saves and
+instead of saving power in suspend. Each entry goes once its driver saves and
 restores its own state. Sleep current has not been measured.
 
 The gauge bug is general: on every HDQ gauge (iPad 5, 6, 7, Air 2) the poll
@@ -48,8 +47,9 @@ poll of 360 s rarely collides; orchard's `30-orchard-battery-poll.conf` sets
 ## Bringing up another board
 
 1. **Domains.** In the board's DT, find the domain of the GPIO controller the
-   buttons use, the `power-domains` of the display node (front end, back end,
-   panel link) and the GPU's. Same SoC family: the T8010 entries above apply
+   buttons use and the `power-domains` of the display node (front end, back end,
+   panel link); the GPU's too, if its driver cannot restart its firmware over
+   sleep. Same SoC family: the T8010 entries above apply
    as they are; another SoC needs its own, in its `-pmgr.dtsi` (shared) or the
    family `.dtsi` (panel link).
 2. **Pollers.** Check the board's drivers for delayed work that requeues itself
