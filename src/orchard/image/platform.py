@@ -31,7 +31,9 @@ from .runtime import checksums, module_files, regulatory_files
 SCHEMA = 1
 # What the initrd loads before it looks for the root, in order. Everything
 # else storage needs is built in; modprobe adds dependencies from modules.dep.
-STORAGE_MODULES = ('nvme',)
+# nvme is PCIe storage; nvme-apple is the Apple ANS2 controller of the A11
+# (d221). A platform may lack either one, but not both.
+STORAGE_MODULES = ('nvme', 'nvme-apple')
 # Where system/defaults may put files: vendor configuration under /usr/lib,
 # and the boards' ALSA UCM profiles where alsa-lib looks for them.
 DEFAULTS_UNDER = ('usr/lib/', 'usr/share/alsa/ucm2/')
@@ -91,7 +93,10 @@ def initrd(modules, release, busybox, *, hardware=None):
         name, _, needs = line.partition(':')
         depends[name] = needs.split()
     by_name = {Path(name).name.split('.ko')[0].replace('_', '-'): name for name in depends}
-    wanted, pending = [], [by_name[name.replace('_', '-')] for name in STORAGE_MODULES]
+    loaded = [name for name in STORAGE_MODULES if name.replace('_', '-') in by_name]
+    if not loaded:
+        raise ValueError(f'Kernel bundle has no storage module: {", ".join(STORAGE_MODULES)}')
+    wanted, pending = [], [by_name[name.replace('_', '-')] for name in loaded]
     while pending:
         name = pending.pop()
         if name not in wanted:
@@ -102,7 +107,7 @@ def initrd(modules, release, busybox, *, hardware=None):
                                                     'lib', 'lib/modules', 'lib/modules/' + release)}
     entries['init'] = (stat.S_IFREG | 0o755, (hardware / 'boot/initramfs/root/init').read_bytes())
     entries['bin/busybox'] = (stat.S_IFREG | 0o755, Path(busybox).read_bytes())
-    entries['etc/orchard/modules'] = (stat.S_IFREG | 0o644, ('\n'.join(STORAGE_MODULES) + '\n').encode())
+    entries['etc/orchard/modules'] = (stat.S_IFREG | 0o644, ('\n'.join(loaded) + '\n').encode())
     dependency_lines = []
     for name in sorted(wanted):
         target = f'lib/modules/{release}/{name}'

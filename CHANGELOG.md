@@ -42,7 +42,8 @@ entry. The iPad 6 gets speakers and an accelerometer for screen rotation.
 - Add experimental PMIC power-off handling for iPad (6th generation, Wi-Fi;
   iPad7,5 / J71b).
 - iPhone X (GSM, d221): internal storage through the Apple ANS2 NVMe driver
-  (`CONFIG_NVME_APPLE`), read-only so far. (Eduardo Martins)
+  (`CONFIG_NVME_APPLE`); the recovery's storage fence loads it, and the
+  installer's partition writes are tested. No install yet. (Eduardo Martins)
 - iPad 6 (J71b): speakers through the MCA audio path, with an ALSA UCM
   profile. (Dalton Alexandre)
 - iPad 5: UCM profile for the speakers and internal microphone.
