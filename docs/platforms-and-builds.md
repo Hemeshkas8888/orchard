@@ -323,25 +323,6 @@ gone (November 2026).
   like a nightly's and taken finished (`orchard run --kernel pr:N` or its
   artifact), so testing a kernel change needs no compile at all.
 
-**Planned, at the switch** (trees authoritative): a nightly is a tuple of
-commits, recorded in `nightly.json`: orchard (descriptors, device data,
-producers, tools), OrchardLinux/linux per platform branch, OrchardLinux/m1n1
-main, the Pongo pin.
-
-- The kernel job clones OrchardLinux/linux at the descriptor's branch and
-  runs `kernel/build PLATFORM --kernel-tree DIR`, the path that gives a
-  kernel byte for byte identical to the series build today; m1n1 likewise
-  from its tree.
-- A nightly runs when any of those repositories moved since the last one.
-- A platform is rebuilt only when its inputs moved (its branch, its config,
-  the shared toolchain and build scripts); otherwise the last nightly's
-  bundle is reused. apple-armv7 then joins and rebuilds only when its branch
-  or the shared files move.
-- **Nightlies follow the branch heads; releases pin them** (decided November
-  2026): at tag time orchard writes the commit tuple into a lock, as
-  `upstream.lock` pins the base today, so a release rebuilds exactly. A
-  kernel change needs no second commit in orchard to reach the nightly.
-
 **Done:** a distribution build takes the nightly's kernel instead of
 compiling it when the platform's *source key* matches (`orchard.published`):
 a hash of the files that decide the kernel (upstream lock, series and every
@@ -355,6 +336,85 @@ tools come from the nightly when the tool recipes match (orchard#58), and
 `ORCHARD_PUBLISHED=off` builds everything locally. The published kernel is
 CI's build of that kernel state; CI installs the toolchain natively, so it
 is not claimed to be byte-identical to a local compile.
+
+**Planned, at the switch** (trees authoritative; decided November 2026): a
+nightly is a tuple of commits, recorded in `nightly.json`: orchard
+(descriptors, device data, producers, tools), OrchardLinux/linux per platform
+branch, OrchardLinux/m1n1 main, the Pongo pin.
+
+- The kernel job clones OrchardLinux/linux at the descriptor's branch and
+  runs `kernel/build PLATFORM --kernel-tree DIR`, the path that gives a
+  kernel byte for byte identical to the series build today; m1n1 likewise
+  from its tree.
+- A nightly runs when any of those repositories moved since the last one.
+- A platform is rebuilt only when its source key moved; otherwise the last
+  nightly's bundle is reused. apple-armv7 then joins and rebuilds only when
+  its branch or the shared files move.
+- **Nightlies follow the branch heads; releases pin them.** A kernel change
+  needs no second commit in orchard to reach the nightly.
+- **Changes land in dependency order:** m1n1, then the kernel, then orchard,
+  and each step works with the current state of the others. One commit can no
+  longer change a driver and its descriptor together. A nightly may catch a
+  half-landed change, which is why only a device-tested one becomes a release.
+
+### Source key at the switch
+
+The series, the configs and the upstream lock leave orchard, so the key can no
+longer be hashed from a checkout's patch files. It has two parts:
+
+- **The source,** from the tuple: the Git tree hash of the platform's linux
+  commit, which holds the upstream base, the patches and the defconfig. A tree
+  hash, so a rebase with the same result rebuilds nothing. m1n1 likewise, with
+  the brand patch still among its recipes.
+- **The recipe,** from the running orchard: the descriptor's build fields, the
+  defconfig's name, the toolchain recipes and `KERNEL_PRODUCER`.
+
+`nightly.json` records each branch's commit and tree hash. CI writes
+`component-keys.json` from both parts. A build reads the tuple of the version
+it runs (its own nightly, the lock in a release, the newest nightly in a
+checkout), adds its own recipe part and compares, so it needs no clone of
+linux to decide. A match downloads the bundle; a mismatch compiles that
+commit from a clone. `--kernel-tree` keeps its key of the tree's content, and
+distributions keep going through `orchard.inputs` with nothing to change.
+
+An orchard checkout then takes its kernel from the nightly too, because orchard
+no longer holds kernel sources: kernel work means `--kernel-tree`. A checkout
+that changes a toolchain recipe compiles.
+
+### Releases
+
+There is one version users see, orchard's `vX.Y.Z`, plus each distribution's
+own. Kernel, m1n1 and platforms have no version numbers of their own.
+
+| Layer | Between releases | At a release | Identified by |
+|---|---|---|---|
+| Kernel (OrchardLinux/linux) | PRs merge to its branches; nightlies follow | tag `orchard-vX.Y.Z` per branch | commit and upstream base |
+| m1n1 | PRs merge to `main`; nightlies follow | tag `orchard-vX.Y.Z` | commit |
+| Platform (descriptor, device data, its kernel bundle and m1n1) | rebuilt when its inputs move | its bundle is a release asset | its entry in the lock |
+| CLI and tooling (orchard) | nightly channel | `vX.Y.Z`: the tooling and the lock | tag |
+| Distribution | previews on the newest nightly | its own version, pinning one stable orchard | its version and that orchard release |
+
+**A release is a promoted nightly.** Pick a nightly that went through a device
+round, write its tuple into a lock in orchard, tag that commit `vX.Y.Z`, tag
+the linux and m1n1 commits, and publish the nightly's assets unchanged. Users
+get the files that were tested, nothing is rebuilt, and the lock does not
+change a source key. A nightly is kept 14 days, so promote within that time.
+
+- **The tags keep a release rebuildable:** an upstream bump rebases the
+  branches, and a commit only a lock names would no longer be on any of them.
+- **A patch release** is the same tuple with one commit changed; a
+  `release/0.3` branch is made only when one is needed.
+- **Release notes:** a linux or m1n1 PR carries its changelog entry in its
+  description; a release collects them into `CHANGELOG.md`. CI's check for the
+  version section stays.
+- **A distribution** bumps its pin and releases on its own schedule.
+
+**Later: the platform layer separate from the distribution.** A stable
+distribution release bundles its platform layer for now, so a kernel fix or a
+new board waits for a distribution release. The installer and an update step
+then combine a distribution's root with the newest compatible platform bundle.
+That needs a compatibility check between root and platform, mainly modules and
+firmware, and comes after the switch.
 
 ## Build caching (planned, last)
 
