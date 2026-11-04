@@ -24,6 +24,8 @@ entry. The iPad 6 gets speakers and an accelerometer for screen rotation.
 - iPad Air (J85): measured RAM-boot status documented. (Christopher M. Smith)
 - iPad Air 2 (J81): native-root boot, desktop and peripheral status recorded.
   (micro23)
+- iPad Air 2 (J81): the touchscreen works, with five fingers and no frame
+  errors on main's kernel. (Martin Puškáč)
 
 ### Install & launch
 
