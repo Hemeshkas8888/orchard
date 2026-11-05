@@ -13,5 +13,8 @@ dt_compatible = ["apple,n66"]
 chip = 0x8000
 board = 0x06
 
+[boot]
+methods = ["checkm8-pongo"] # palera1n's device list (palera.in); not run with Orchard yet.
+
 [catalog]
 dtb = "s8000-n66" # Exists in OrchardLinux/linux; not enabled here yet.

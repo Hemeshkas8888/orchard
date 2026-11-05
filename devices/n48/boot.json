@@ -6,7 +6,7 @@
       "ipsw": {
         "version": "10.3.3",
         "build": "14G60",
-        "url": "http://appldnld.apple.com/ios10.3.3/091-23384-20170719-CA966D80-6977-11E7-9F96-3E9100BA0AE3/iPhone_4.0_32bit_10.3.3_14G60_Restore.ipsw",
+        "url": "https://secure-appldnld.apple.com/ios10.3.3/091-23384-20170719-CA966D80-6977-11E7-9F96-3E9100BA0AE3/iPhone_4.0_32bit_10.3.3_14G60_Restore.ipsw",
         "bytes": 2000885186,
         "sha256": "8d105cb8174b7538fef3297251fc9debc287292257bd29c792addf5a4ab7ad2e"
       },

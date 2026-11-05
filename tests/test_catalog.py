@@ -12,6 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 DESCRIPTORS = sorted(ROOT.glob('devices/*/device.toml'))
 CHIPS = {chip['cpid']: chip for chip in (tomllib.loads(path.read_text()) for path in (ROOT / 'chips').glob('*.toml'))}
 METHODS = tomllib.loads((ROOT / 'methods.toml').read_text())
+# Every iPhone and iPad on palera1n's device list (https://palera.in).
+PALERA1N = '''n71 n71m n66 n66m n69 n69u d10 d101 d11 d111 d20 d201 d21 d211 d22 d221
+              j96 j97 j71s j71t j72s j72t j71b j72b j171 j172 j127 j128 j98a j99a
+              j207 j208 j120 j121 j81 j82'''
 
 
 def tool():
@@ -86,8 +90,21 @@ class Catalog(unittest.TestCase):
             with self.subTest(board=path.parent.name):
                 recipe.validate(json.loads(path.read_text()))
 
+    def test_palera1ns_boards_list_checkm8_pongo(self):
+        for board in PALERA1N.split():
+            with self.subTest(board=board):
+                described = tomllib.loads((ROOT / 'devices' / board / 'device.toml').read_text())
+                self.assertIn('checkm8-pongo', described['boot']['methods'])
+
     def test_the_matrix_is_current(self):
         self.assertEqual(tool().matrix(True), [])
+
+
+class Urls(unittest.TestCase):
+    def test_the_old_http_host_is_replaced(self):
+        self.assertEqual(tool().secure('http://appldnld.apple.com/ios10.3.3/a.ipsw'),
+                         'https://secure-appldnld.apple.com/ios10.3.3/a.ipsw')
+        self.assertEqual(tool().secure('https://updates.cdn-apple.com/a.ipsw'), 'https://updates.cdn-apple.com/a.ipsw')
 
 
 class BuildChoice(unittest.TestCase):

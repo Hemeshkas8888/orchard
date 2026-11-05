@@ -37,8 +37,14 @@ HEADERS = {'User-Agent': 'orchard-catalog-generator'}
 FAMILIES = ('iPad', 'iPhone')
 INPUTS = ('iBSS', 'iBEC', 'DeviceTree')
 MATRIX = ROOT / 'docs/compatibility.md'
+# api.ipsw.me lists some old IPSWs over HTTP; this host serves the same files over HTTPS.
+HTTP_HOST, HTTPS_HOST = 'http://appldnld.apple.com/', 'https://secure-appldnld.apple.com/'
 # Boards an open pull request adds; generating them here would conflict with it.
 IN_REVIEW = {'j72': 'PR #59'}
+
+
+def secure(url):
+    return HTTPS_HOST + url.removeprefix(HTTP_HOST) if url.startswith(HTTP_HOST) else url
 
 
 def request(url, headers=None, method='GET'):
@@ -118,7 +124,8 @@ def choose_build(firmwares, chip, recipe_build):
 
 def read_firmware(firmware, model, selected_by):
     """One boot.json firmware entry, and the board's identity from the BuildManifest."""
-    archive = zipfile.ZipFile(RemoteFile(firmware['url']))
+    url = secure(firmware['url'])
+    archive = zipfile.ZipFile(RemoteFile(url))
     document = archive.read('BuildManifest.plist')
     manifest = plistlib.loads(document)
     identities = [identity for identity in manifest['BuildIdentities']
@@ -133,7 +140,7 @@ def read_firmware(firmware, model, selected_by):
         path = identity['Manifest'].get(role, {}).get('Info', {}).get('Path')
         if path in names:
             inputs[role] = {'ipsw': {'zip': path}, 'sha256': hashlib.sha256(archive.read(path)).hexdigest()}
-    entry = {'ipsw': {'version': firmware['version'], 'build': firmware['buildid'], 'url': firmware['url'],
+    entry = {'ipsw': {'version': firmware['version'], 'build': firmware['buildid'], 'url': url,
                       'bytes': firmware['filesize'], 'sha256': firmware['sha256sum']},
              'selected_by': selected_by, 'inputs': inputs}
     return entry, int(identity['ApChipID'], 16), int(identity['ApBoardID'], 16)

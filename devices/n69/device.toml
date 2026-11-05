@@ -13,5 +13,8 @@ dt_compatible = ["apple,n69"]
 chip = 0x8003
 board = 0x02
 
+[boot]
+methods = ["checkm8-pongo"] # palera1n's device list (palera.in); not run with Orchard yet.
+
 [catalog]
 dtb = "s8003-n69" # Exists in OrchardLinux/linux; not enabled here yet.

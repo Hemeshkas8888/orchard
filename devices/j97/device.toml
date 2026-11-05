@@ -13,5 +13,8 @@ dt_compatible = ["apple,j97"]
 chip = 0x7000
 board = 0x0a
 
+[boot]
+methods = ["checkm8-pongo"] # palera1n's device list (palera.in); not run with Orchard yet.
+
 [catalog]
 dtb = "t7000-j97" # Exists in OrchardLinux/linux; not enabled here yet.

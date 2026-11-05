@@ -13,5 +13,8 @@ dt_compatible = ["apple,j128"]
 chip = 0x8001
 board = 0x0a
 
+[boot]
+methods = ["checkm8-pongo"] # palera1n's device list (palera.in); not run with Orchard yet.
+
 [catalog]
 dtb = "s8001-j128" # Exists in OrchardLinux/linux; not enabled here yet.
