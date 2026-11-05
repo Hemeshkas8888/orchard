@@ -5,10 +5,9 @@ from pathlib import Path
 import re
 import unittest
 
+from orchard import hardware as data
+
 HARDWARE = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('n61_hardware_data', HARDWARE / 'src/orchard/hardware.py')
-data = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(data)
 
 
 class N61Data(unittest.TestCase):

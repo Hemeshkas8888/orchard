@@ -270,6 +270,29 @@ reads. Now the `orchard` on PATH runs one nightly from start to end (see
 "Nightlies"), and a checkout's `bin/orchard` runs that checkout, which is
 yours to update with git. A fix for a running build means restarting it.
 
+## Device catalog
+
+Device data (`devices/`, `chips/`, `methods.toml`, `features.toml`) reaches a CLI
+separately from the CLI's own code, so a data change needs no CLI update:
+
+- Every change on main publishes `catalog-v1/catalog.json` and the archive it names
+  (`.github/workflows/catalog.yml`), after the data tests pass.
+- A published orchard (a nightly, a release, an installed core) checks for a newer
+  catalog at most once an hour and keeps it in `catalog/` in the Orchard cache. Without
+  network it uses the cached one. It bundles no device data and pins none.
+- A checkout's `bin/orchard` reads its own files, so a change can be tested before
+  it is merged. `ORCHARD_DATA=DIR` selects a directory with any orchard.
+- A build reads its own checkout's data, because it has to match that checkout's kernel.
+- `platforms/` isn't in the catalog: it is the kernel's build recipe, read by builds.
+
+The schema is the only contract. Additions stay in `catalog-v1`; a breaking change
+publishes `catalog-v2`, and older CLIs keep what they understand. New boot methods
+need code: `hardware.IMPLEMENTED_METHODS` says what this version implements, so data
+can name a method a CLI doesn't have, and that CLI says it has no boot method for the board.
+
+A distro release pins the platform layer it was tested with, so a board that needs
+a newer kernel arrives with the next distro release or nightly.
+
 ## Nightlies
 
 **Done (CI):** a scheduled run (03:17 UTC) builds every published component

@@ -15,10 +15,8 @@ import tempfile
 
 
 def cache_root():
-    override = os.environ.get('ORCHARD_CACHE_DIR')
-    if override:
-        return Path(override).expanduser().resolve()
-    return (Path(os.environ.get('XDG_CACHE_HOME', Path.home() / '.cache')) / 'orchard').resolve()
+    from .cache import shared_cache_root
+    return shared_cache_root()
 
 
 def git(repository, *arguments, env=None):

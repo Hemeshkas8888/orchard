@@ -1,0 +1,50 @@
+name: Catalog
+
+# Publishes device data whenever it changes on main, so CLIs get it without an update.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'devices/**'
+      - 'chips/**'
+      - 'methods.toml'
+      - 'features.toml'
+      - 'tools/catalog/drivers.json'
+      - 'tools/catalog/generate'
+      - '.github/workflows/catalog.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: catalog
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: catalog-v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Check the data before anyone downloads it
+        run: |
+          python -m pip install -e '.[validate]'
+          python -m unittest tests.test_catalog tests.test_firmware_recipes tests.test_n61_data tests.test_t8010_device_data
+      - run: python tools/catalog/generate publish --output out --commit "$GITHUB_SHA"
+      - name: Upload the archive first, then the pointer that names it
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --prerelease --latest=false \
+            --target "$GITHUB_SHA" --title "Device catalog v1" \
+            --notes "The newest device data; read by orchard. See docs/platforms-and-builds.md."
+          gh release upload "$TAG" out/catalog-*.tar.gz --clobber
+          gh release upload "$TAG" out/catalog.json --clobber
+      - name: Keep the newest archives, for CLIs mid-download
+        run: |
+          gh release view "$TAG" --json assets --jq '.assets | sort_by(.createdAt) | reverse | map(select(.name | startswith("catalog-"))) | .[5:][].name' |
+            while read -r name; do gh release delete-asset "$TAG" "$name" --yes; done

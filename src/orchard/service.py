@@ -138,6 +138,8 @@ def install(manifest=None, *, input_fn=input, secrets_fn=ask_secrets, progress=N
     source = manifest or default_manifest(adapter.PROFILE)
     name = select_manifest(source, adapter.PROFILE, None, clock)[0].get('name', 'Linux')
     progress.say(f'Installing {name} on {adapter.NAME}')
+    from . import hardware
+    progress.say(f'  Device data: {hardware.data_revision()}')
     for line in caveats(adapter):
         progress.say('  ' + line)
     answer = ask(clock, 'Continue? [Y/n] ', input_fn)

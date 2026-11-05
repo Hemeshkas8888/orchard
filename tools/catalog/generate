@@ -6,6 +6,7 @@
   tools/catalog/generate kernel --kernel PLATFORM=DIR ...
                                                record which drivers each board's device tree binds
   tools/catalog/generate matrix [--check]      write docs/compatibility.md from the catalog
+  tools/catalog/generate publish --output DIR  write the archive and pointer CLIs download
 
 `write` and `check` read api.ipsw.me, each IPSW's BuildManifest and boot files
 (by byte range, never a whole IPSW) and OrchardLinux/linux. They need Python
@@ -23,6 +24,7 @@ driver could bind on the board, never that the feature works.
 """
 import argparse
 import concurrent.futures
+import gzip
 import hashlib
 import io
 import json
@@ -32,6 +34,7 @@ import re
 import struct
 import subprocess
 import sys
+import tarfile
 import time
 import tomllib
 import urllib.request
@@ -48,6 +51,7 @@ FEATURE_DRIVERS = ROOT / 'tools/catalog/feature-drivers.toml'
 DRIVERS = ROOT / 'tools/catalog/drivers.json'
 # api.ipsw.me lists some old IPSWs over HTTP; this host serves the same files over HTTPS.
 HTTP_HOST, HTTPS_HOST = 'http://appldnld.apple.com/', 'https://secure-appldnld.apple.com/'
+CATALOG_SCHEMA = 1  # catalog.SCHEMA: a breaking data change publishes to a new catalog-vN
 # What the matrix shows as installable; a test keeps this equal to hardware.IMPLEMENTED_METHODS.
 IMPLEMENTED_METHODS = {'checkm8-pongo'}
 # Boards an open pull request adds; generating them here would conflict with it.
@@ -525,6 +529,41 @@ def matrix(verify):
     return []
 
 
+def catalog_members():
+    """{name in the archive: file}: what a CLI reads, without docs or tools."""
+    members = {name: ROOT / name for name in ('features.toml', 'methods.toml')}
+    members['drivers.json'] = DRIVERS
+    members.update({f'chips/{path.name}': path for path in (ROOT / 'chips').glob('*.toml')})
+    for path in DEVICES.glob('*/*'):
+        if path.name in ('device.toml', 'firmware.json', 'boot.json'):
+            if path.is_symlink():
+                raise ValueError(f'Device data must not contain links: {path}')
+            members[f'devices/{path.parent.name}/{path.name}'] = path
+    return members
+
+
+def publish(output, commit):
+    """catalog-SHA.tar.gz and catalog.json in OUTPUT: same data, same bytes."""
+    buffer = io.BytesIO()
+    with gzip.GzipFile(fileobj=buffer, mode='wb', mtime=0) as compressed:
+        with tarfile.open(fileobj=compressed, mode='w', format=tarfile.USTAR_FORMAT) as archive:
+            for name, path in sorted(catalog_members().items()):
+                data = path.read_bytes()
+                info = tarfile.TarInfo(name)
+                info.size, info.mode = len(data), 0o644
+                archive.addfile(info, io.BytesIO(data))
+    data = buffer.getvalue()
+    digest = hashlib.sha256(data).hexdigest()
+    output.mkdir(parents=True, exist_ok=True)
+    name = f'catalog-{digest[:12]}.tar.gz'
+    (output / name).write_bytes(data)
+    (output / 'catalog.json').write_text(json.dumps(
+        {'schema': CATALOG_SCHEMA, 'file': name, 'bytes': len(data), 'sha256': digest, 'commit': commit},
+        indent=2, sort_keys=True) + '\n')
+    print(name)
+    return []
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -534,11 +573,16 @@ def main():
     commands.add_parser('kernel').add_argument('--kernel', action='append', required=True, metavar='PLATFORM=DIR',
                                                help='a built kernel of that platform; repeat per platform')
     commands.add_parser('matrix').add_argument('--check', action='store_true', help='fail if it is out of date')
+    published = commands.add_parser('publish')
+    published.add_argument('--output', type=Path, required=True)
+    published.add_argument('--commit', required=True)
     arguments = parser.parse_args()
     if arguments.command == 'write':
         failures = write(arguments.linux)
     elif arguments.command == 'check':
         failures = check(arguments.linux)
+    elif arguments.command == 'publish':
+        failures = publish(arguments.output, arguments.commit)
     elif arguments.command == 'kernel':
         failures = kernel_report(dict(value.split('=', 1) for value in arguments.kernel))
     else:

@@ -1,9 +1,12 @@
 """The one way to read device data: descriptors, features, boot methods, firmware recipes, loaders.
 
-Nothing else opens devices/, methods.toml or features.toml. ROOT says where they
-are; `root` selects another checkout's data, for a build against another branch.
+Nothing else opens devices/, methods.toml or features.toml. data_root says where
+they are; `root` selects a checkout's data, for builds, which have to match their
+own checkout rather than the newest catalog.
 """
+from functools import cache
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -15,10 +18,42 @@ ROOT = Path(__file__).resolve().parents[2]
 IMPLEMENTED_METHODS = frozenset({'checkm8-pongo'})
 
 
+def published():
+    """Whether this code is a published orchard (a nightly, a release, a core), not a checkout."""
+    from .cache import cache_root, shared_cache_root
+    return any(parent.resolve() in ROOT.parents for parent in (shared_cache_root() / 'tooling', cache_root() / 'core'))
+
+
+@cache
+def data_root():
+    """Where device data is: ORCHARD_DATA, a checkout's own files, else the published catalog."""
+    override = os.environ.get('ORCHARD_DATA')
+    if override:
+        path = Path(override).expanduser()
+        if not (path / 'devices').is_dir():
+            raise ValueError(f'ORCHARD_DATA has no devices/: {path}')
+        return path
+    if not published():
+        return ROOT
+    from .catalog import current
+    latest = current()
+    if latest is not None:
+        return latest['path']
+    if (ROOT / 'devices').is_dir():  # a clone made offline still has the data of its own commit
+        return ROOT
+    raise ValueError('No device catalog yet: connect to the network once')
+
+
+def data_revision():
+    """What this run's device data is, for a log or a report."""
+    path = data_root()
+    return path.name[:12] if path.parent.name == 'catalog' else str(path)
+
+
 def device_path(profile, root=None):
     if not isinstance(profile, str) or not re.fullmatch(r'[a-z0-9][a-z0-9._-]*', profile):
         raise ValueError('Invalid hardware profile')
-    path = Path(root or ROOT) / 'devices' / profile / 'device.toml'
+    path = Path(root or data_root()) / 'devices' / profile / 'device.toml'
     if not path.is_file() or path.is_symlink():
         raise ValueError('Hardware support is not installed for ' + profile)
     return path
@@ -26,19 +61,19 @@ def device_path(profile, root=None):
 
 def profiles(root=None):
     """Every device this hardware data describes."""
-    devices = Path(root or ROOT) / 'devices'
+    devices = Path(root or data_root()) / 'devices'
     return sorted(path.parent.name for path in devices.glob('*/device.toml')
                   if not path.is_symlink() and not path.parent.is_symlink())
 
 
 def features():
     """Feature names and display labels for device.toml [features], in display order."""
-    return tomllib.loads((ROOT / 'features.toml').read_text())
+    return tomllib.loads((data_root() / 'features.toml').read_text())
 
 
 def methods():
     """Boot methods a device.toml can list, and what each needs (methods.toml)."""
-    return tomllib.loads((ROOT / 'methods.toml').read_text())
+    return tomllib.loads((data_root() / 'methods.toml').read_text())
 
 
 def device(profile, root=None):
@@ -89,22 +124,6 @@ def firmware_path(profile, root=None):
     if not path.is_file():
         raise ValueError('Firmware recipe resource is missing')
     return path
-
-
-def data_files(boards, root=None):
-    """{path in a package: file} of the shared data and these boards' directories."""
-    root = Path(root or ROOT)
-    files = {'features.toml': root / 'features.toml', 'methods.toml': root / 'methods.toml'}
-    for board in boards:
-        directory = root / 'devices' / board
-        if not (directory / 'device.toml').is_file():
-            raise ValueError(f'orchard describes no device {board}')
-        for path in sorted(directory.rglob('*')):
-            if path.is_symlink():
-                raise ValueError(f'Device data must not contain links: {path}')
-            if path.is_file() and '__pycache__' not in path.parts:
-                files['devices/' + path.relative_to(root / 'devices').as_posix()] = path
-    return files
 
 
 def loader(profile):
