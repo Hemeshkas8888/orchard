@@ -1,0 +1,17 @@
+# iPhone 8 (GSM) (D201): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "d201"
+name = "iPhone 8 (GSM)"
+apple_products = ["iPhone10,4"]
+dt_compatible = ["apple,d201"]
+
+[match.dfu]
+chip = 0x8015
+board = 0x0a
+
+[catalog]
+dtb = "t8015-d201" # Exists in OrchardLinux/linux; not enabled here yet.

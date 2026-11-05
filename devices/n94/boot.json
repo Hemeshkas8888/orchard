@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPhone4,1",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "8.4.1",
+        "build": "12H321",
+        "url": "https://secure-appldnld.apple.com/ios8.4.1/031-31129-20150812-751A3CB8-3C8F-11E5-A8A5-A91A3A53DB92/iPhone4,1_8.4.1_12H321_Restore.ipsw",
+        "bytes": 1560654758,
+        "sha256": "68a5f724ec43b020caec7e83768252727173f0c180f12ee3d6ba8fc8aa90b27a"
+      },
+      "selected_by": "chip-reference",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "14c2792c82f94fe28e9b55bf75383ce899aaeb44a361b20513459436e160d948"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.n94.RELEASE.dfu"
+          },
+          "sha256": "87a0f6cdb2418439bac542444adf528dd0f404e27dca31ca652cbacb198120a8"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.n94.RELEASE.dfu"
+          },
+          "sha256": "07dbd03339cd2b59bf46833a34b61223af40a0b2099f7553c6d218b18e8feced"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/all_flash.n94ap.production/DeviceTree.n94ap.img3"
+          },
+          "sha256": "e277e2bbfb07ba50bfefab32c893d98a600a9f0c2e978719aea5db3620f9fd00"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

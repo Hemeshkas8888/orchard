@@ -1,0 +1,13 @@
+# iPhone 11 Pro (D421): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "d421"
+name = "iPhone 11 Pro"
+apple_products = ["iPhone12,3"]
+
+[match.dfu]
+chip = 0x8030
+board = 0x06

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPhone11,2",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "18.7.10",
+        "build": "22H374",
+        "url": "https://updates.cdn-apple.com/2026WinterFCS/fullrestores/140-97977/CB8B320D-008B-4FC2-8256-56A1DB86C586/iPhone11,2,iPhone11,4,iPhone11,6_18.7.10_22H374_Restore.ipsw",
+        "bytes": 8848412771,
+        "sha256": "32d658948766d1de8f24e0cd63bf4fc2c1246d3b99d819db5d200b7f38eae7df"
+      },
+      "selected_by": "chip-reference",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "8ada5d82da563f6294862807d3e8f54852176a8cc7d2e037db008fe10269fdc6"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.d321.RELEASE.im4p"
+          },
+          "sha256": "e84ac8476368a25a8a139ddd2cdac8483a834489c3e1af368c9bba5f5c86c5fb"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.d321.RELEASE.im4p"
+          },
+          "sha256": "79a103466ff2fbc411bb8b79c188c5053bbf3159b9a1493f3b6a1ed3497315cd"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.d321ap.im4p"
+          },
+          "sha256": "543d06b017d76c8129a76fc58e0b7f76f15108162e217ae994f5e5625fc698f9"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

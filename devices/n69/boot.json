@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPhone8,4",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "15.8.8",
+        "build": "19H422",
+        "url": "https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77321/C113B49D-5014-4DEA-9C43-9AA3D772355B/iPhone_4.0_64bit_15.8.8_19H422_Restore.ipsw",
+        "bytes": 5229896987,
+        "sha256": "9a36579735386cc7844cd255185f9413f0bc72a97da60bddbf7f8485f596736f"
+      },
+      "selected_by": "newest",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "018b9173d47ec86ab47a7a2b46835db486eca917a95f881e08448ed571b02f54"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.n69.RELEASE.im4p"
+          },
+          "sha256": "10e6422a76ba10a877570befd98582f62866a4b2a3df68f537154adbd1bc27dd"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.n69.RELEASE.im4p"
+          },
+          "sha256": "fc7d96faae888e7c5f06593934d4ae6d17ee782a9387290b9b7ce1d56f4131f0"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.n69ap.im4p"
+          },
+          "sha256": "6b0720782015ca0539e3434ca051a7552ec5719baaa6b2d6ca1e12c96360a18d"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPad6,7",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "16.7.16",
+        "build": "20H392",
+        "url": "https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77150/627F6C0C-E3B9-4601-A438-E7A3C2401848/iPadPro_12.9_16.7.16_20H392_Restore.ipsw",
+        "bytes": 5547711023,
+        "sha256": "6d7dae731af949e1c730cd07ec5106f8db459b8ce7409222a7505452bb50b85a"
+      },
+      "selected_by": "newest",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "717b1070af34acf928479674fdf480acd98da5d535f487365c559be63389d44a"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.ipad6d.RELEASE.im4p"
+          },
+          "sha256": "b94cc6d4a5ab8e065ec2cce49ff32bb80c08a7e216ea54c7372619f45e3d9285"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.ipad6d.RELEASE.im4p"
+          },
+          "sha256": "8face5bb5a7d358eb66363d1b60479e857735a97b21f05daa388c5b464075f30"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.j98aap.im4p"
+          },
+          "sha256": "407bb78afa17fc912919e9a11bb41f822427021f1b87fada90cd439c614234dd"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

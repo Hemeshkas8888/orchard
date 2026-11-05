@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPad11,6",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "18.6.2",
+        "build": "22G100",
+        "url": "https://updates.cdn-apple.com/2025SummerFCS/fullrestores/093-21526/855FCA5C-F592-41BA-A362-AC9854B7A6BC/iPad_10.2_2020_18.6.2_22G100_Restore.ipsw",
+        "bytes": 8511690565,
+        "sha256": "25f5001f16fd59d7e2a730152dedb357cbc857260cb85744fe492cc4c16567fc"
+      },
+      "selected_by": "chip-reference-major",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "14f0a16ffec11a6ed9c70e6fb9f9adf1b53cb43e1a4784579615536a01825e60"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.ipad11b.RELEASE.im4p"
+          },
+          "sha256": "716ae17862482182517611789c37ad2e44243fdd46a35df1fbbd67a97ccaf683"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.ipad11b.RELEASE.im4p"
+          },
+          "sha256": "ac7b9169644b32ee82d4daf656b5a70219140d25e52b79bd462641dc7f334458"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.j171aap.im4p"
+          },
+          "sha256": "74a0ee3ff321dca2c6cec4553752c47262fb63aa0b3e9c5bb4a01a89e6622f99"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

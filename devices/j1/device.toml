@@ -1,0 +1,13 @@
+# iPad 3 (Wi-Fi) (J1): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j1"
+name = "iPad 3 (Wi-Fi)"
+apple_products = ["iPad3,1"]
+
+[match.dfu]
+chip = 0x8945
+board = 0x00

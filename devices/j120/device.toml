@@ -1,0 +1,17 @@
+# iPad Pro 2 (12.9-inch, Wi-Fi) (J120): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j120"
+name = "iPad Pro 2 (12.9-inch, Wi-Fi)"
+apple_products = ["iPad7,1"]
+dt_compatible = ["apple,j120"]
+
+[match.dfu]
+chip = 0x8011
+board = 0x0c
+
+[catalog]
+dtb = "t8011-j120" # Exists in OrchardLinux/linux; not enabled here yet.

@@ -1,0 +1,17 @@
+# iPhone 8 (Global) (D20): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "d20"
+name = "iPhone 8 (Global)"
+apple_products = ["iPhone10,1"]
+dt_compatible = ["apple,d20"]
+
+[match.dfu]
+chip = 0x8015
+board = 0x02
+
+[catalog]
+dtb = "t8015-d20" # Exists in OrchardLinux/linux; not enabled here yet.

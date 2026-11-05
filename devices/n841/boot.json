@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "device": "iPhone11,8",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "18.7.10",
+        "build": "22H374",
+        "url": "https://updates.cdn-apple.com/2026WinterFCS/fullrestores/140-97953/5F3051CD-5405-4FEF-889E-C3B78E0F376F/iPhone11,8_18.7.10_22H374_Restore.ipsw",
+        "bytes": 8683828945,
+        "sha256": "b30474b679d9ec040608c5f6a33909f3c2e504b26f6a3ccc55e1aaca03a46bc4"
+      },
+      "selected_by": "chip-reference",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "a324b0bbe0f119c26612697a62a0d39a39f28ee4b0bc1730cac049981c2b2b8c"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.n841.RELEASE.im4p"
+          },
+          "sha256": "2578f69468e3cdec09cb1d506f60733de06c5a72b0ecbf3be8d11c888861a389"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.n841.RELEASE.im4p"
+          },
+          "sha256": "3144c71047372ddc31912a16ad242f5900dccdb4396c2ca53404ebad28004f83"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.n841ap.im4p"
+          },
+          "sha256": "f9aef993e1896526ee5f21b8986c8331930068249fd0168efc49961bc702400c"
+        }
+      }
+    }
+  ],
+  "methods": {
+    "custom-dfu-recovery": {
+      "build": "22H374",
+      "iboot_patcher": "anchor-based",
+      "source": "rzxvx/Project-Cascadia@091d441 devices/a12/boot/patch_iboot.py"
+    }
+  }
+}

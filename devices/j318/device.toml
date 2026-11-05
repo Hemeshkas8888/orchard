@@ -1,0 +1,13 @@
+# iPad Pro 3 (11-inch, Cellular) (J318): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j318"
+name = "iPad Pro 3 (11-inch, Cellular)"
+apple_products = ["iPad8,3"]
+
+[match.dfu]
+chip = 0x8027
+board = 0x0e

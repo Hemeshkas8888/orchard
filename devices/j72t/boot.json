@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPad6,12",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "16.7.10",
+        "build": "20H350",
+        "url": "https://updates.cdn-apple.com/2024SpringFCS/fullrestores/062-47889/FBBD9227-79D6-4FAA-91B9-D20E087BE0E7/iPad_64bit_TouchID_ASTC_16.7.10_20H350_Restore.ipsw",
+        "bytes": 5586431671,
+        "sha256": "1709e8e27b1c0c98dc7c64ae27b4e208b49835c24a95074d1aebe135342b3112"
+      },
+      "selected_by": "firmware-recipe",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "bbbaf0ab9690964f2bca33a6a2dce1dc69f146c93275adad2cc49e5553d1dc76"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.j72t.RELEASE.im4p"
+          },
+          "sha256": "f53adb85e83c6c15a2cb5a26e9d871be3c447dba3bf2dc2363dd26537a445f09"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.j72t.RELEASE.im4p"
+          },
+          "sha256": "34fc5d0143421c801c6ee7cab832fd259d061b196c48a6410b24d55767f094b0"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.j72tap.im4p"
+          },
+          "sha256": "fb6bcd4ff9910c90ade90bdce12ad87fa128add633917d719682f686566d2118"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

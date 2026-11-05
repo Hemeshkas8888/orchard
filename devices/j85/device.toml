@@ -1,0 +1,17 @@
+# iPad mini 2 (Wi-Fi) (J85): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j85"
+name = "iPad mini 2 (Wi-Fi)"
+apple_products = ["iPad4,4"]
+dt_compatible = ["apple,j85"]
+
+[match.dfu]
+chip = 0x8960
+board = 0x0a
+
+[catalog]
+dtb = "s5l8960x-j85" # Exists in OrchardLinux/linux; not enabled here yet.

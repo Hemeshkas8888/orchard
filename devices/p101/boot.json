@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPad3,4",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "10.3.3",
+        "build": "14G60",
+        "url": "http://appldnld.apple.com/ios10.3.3/091-23117-20170719-CA973B02-6977-11E7-953B-279100BA0AE3/iPad_32bit_10.3.3_14G60_Restore.ipsw",
+        "bytes": 1930250488,
+        "sha256": "3e2bd7d18823d93736a68d85961ff7ece5dd932a19c58d52e43282a6ea6ac312"
+      },
+      "selected_by": "newest",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "22f166254845f47e7a2ad17077c3a682718114ba3304277308639aee23a70d15"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.ipad3b.RELEASE.dfu"
+          },
+          "sha256": "c48e3627dce3395ce56266705a408063f85d7125ff10673f719e483072b898ce"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.ipad3b.RELEASE.dfu"
+          },
+          "sha256": "6144f5f33599175a635a0d103d55b893c3b7b2c8f4e844117f10ae93bc88f6b1"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.p101ap.img3"
+          },
+          "sha256": "22bb13c993559c08ba444d315d3cc85b4d6b4e8eb07238790b81e28489ad0d33"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

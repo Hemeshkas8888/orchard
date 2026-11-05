@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPad4,3",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "12.5.8",
+        "build": "16H88",
+        "url": "https://updates.cdn-apple.com/2026WinterFCS/fullrestores/047-28446/9ED122D9-755C-403E-B95E-7C36998B9838/iPad_64bit_12.5.8_16H88_Restore.ipsw",
+        "bytes": 2963007018,
+        "sha256": "8d0c6a232e720246d8b699bfe2240833560221e8a4bf10fcb707b73be412b5f3"
+      },
+      "selected_by": "newest",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "4ee17b129fc764193d03fa4e3cb53597d0eda2b55406c442ce3040a20b2341ef"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.ipad4.RELEASE.im4p"
+          },
+          "sha256": "2a417a04356b6345d8201d89fb643bcb3135fd2a59f4ff166ec4f05b7cc4de39"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.ipad4.RELEASE.im4p"
+          },
+          "sha256": "90d81ca5a9851f3e7574e2d57a31dc9bc84c1e20d634e19bf6a2b4313b6c3df0"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.j73ap.im4p"
+          },
+          "sha256": "c4cdd8c3c8ad13dfea64d75ff78bea304d4070768d71fa3348c1138f85c626f1"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

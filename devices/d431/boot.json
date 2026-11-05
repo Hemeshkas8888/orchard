@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPhone12,5",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "16.4",
+        "build": "20E247",
+        "url": "https://updates.cdn-apple.com/2023SpringFCS/fullrestores/032-68595/CAB5C1E0-E5A2-49A9-AB9F-936B976FF218/iPhone12,3,iPhone12,5_16.4_20E247_Restore.ipsw",
+        "bytes": 6518320021,
+        "sha256": "577dbd382707dfc64bc6b3417004045d5c1746ea844a53068ef1c724ac5ebd53"
+      },
+      "selected_by": "chip-reference",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "46fbb557c6368fafd4d1566a9f97e569d9f017a061763679aebc4a4e5886e094"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.d431.RELEASE.im4p"
+          },
+          "sha256": "913386b897c9d29944c658cedcd0676b328f28acb058ec1d351697a42f49374b"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.d431.RELEASE.im4p"
+          },
+          "sha256": "d2cf5b311782f67d24640db6356520a010a6777fa968763acc4ff9db2936f3bb"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.d431ap.im4p"
+          },
+          "sha256": "9bb3a5f7d019ef4f247275e028d2c254f05f9ab86103aabcdb47f8bb4cd7915b"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

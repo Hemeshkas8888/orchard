@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "device": "iPad2,5",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "8.4.1",
+        "build": "12H321",
+        "url": "https://secure-appldnld.apple.com/ios8.4.1/031-31249-20150812-75235CC6-3C8F-11E5-848D-BE1A3A53DB92/iPad2,5_8.4.1_12H321_Restore.ipsw",
+        "bytes": 1509764204,
+        "sha256": "ce6cd59a4a3271eccb93b31c8d40e94ad966112999576663b3ab235196154756"
+      },
+      "selected_by": "chip-reference",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "49810fe3bc1ad4fe229de8335452f32be0bdf167f06b4643cf41accda20e6adf"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.p105.RELEASE.dfu"
+          },
+          "sha256": "08d3ca6cf04f79e0cd73d398b8ba1b9182411c970e83c40bcc88d5117a9fe944"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.p105.RELEASE.dfu"
+          },
+          "sha256": "da5a37b375163f47e1f1f300f6ed1d285bf20242b08b38443eaf1933e9ec3ca9"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/all_flash.p105ap.production/DeviceTree.p105ap.img3"
+          },
+          "sha256": "5fb38fa2dcc7196ebc4bb7f9afccca7035bd1873fcb3b9cddfca338058d3ee9f"
+        }
+      }
+    }
+  ],
+  "methods": {
+    "recovery-autogo": {
+      "build": "12H321",
+      "iboot_patcher": "iBoot32Patcher",
+      "autogo_hook": "0x2384c",
+      "autogo_hook_original": "1a480121",
+      "autogo_trampoline": "0x43e0e",
+      "cache_flush": "0x9ff2134c",
+      "done_flag": "0x9ff48bb0",
+      "usb_continue": "0x9ff201a4",
+      "source": "rzxvx/Project-Cascadia@091d441 devices/a5/scripts/patch-ibec-autogo.py"
+    }
+  }
+}

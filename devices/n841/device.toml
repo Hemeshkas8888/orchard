@@ -1,0 +1,17 @@
+# iPhone XR (N841): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "n841"
+name = "iPhone XR"
+apple_products = ["iPhone11,8"]
+
+[match.dfu]
+chip = 0x8020
+board = 0x0c
+
+[boot]
+methods = ["custom-dfu-recovery"]
+entries = ["usbliter8"]

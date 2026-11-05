@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPad3,1",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "9.3.5",
+        "build": "13G36",
+        "url": "https://secure-appldnld.apple.com/iOS9.3.5/031-73961-20160825-88328FDE-6714-11E6-97F2-B63D34D2D062/iPad3,1_9.3.5_13G36_Restore.ipsw",
+        "bytes": 1670499692,
+        "sha256": "ceec5670fe63f113b766a09b189c50a31e96e4c538905076216fb21170385c95"
+      },
+      "selected_by": "newest",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "63d690309ccf022be5b57b6f7ac651fceaf0a12a1a30e4d67c9af5d523de1bfd"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.j1.RELEASE.dfu"
+          },
+          "sha256": "26bbdb32fd867674f38551647ad598a60f739dab8b224fb4a20172dbad84770d"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.j1.RELEASE.dfu"
+          },
+          "sha256": "64692ea4bae4356acf40429e71b09c72c38cb2409d33e72fe6b125a9dadda029"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/all_flash.j1ap.production/DeviceTree.j1ap.img3"
+          },
+          "sha256": "570276b2ccbb0b8ba26f113cba98b741468c7f5c9d79460587c8bbc359c4aab5"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

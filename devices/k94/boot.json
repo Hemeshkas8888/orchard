@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPad2,2",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "8.4.1",
+        "build": "12H321",
+        "url": "https://secure-appldnld.apple.com/ios8.4.1/031-31288-20150812-4490750C-3C90-11E5-84FD-231C3A53DB92/iPad2,2_8.4.1_12H321_Restore.ipsw",
+        "bytes": 1410815324,
+        "sha256": "cf35fb32d8a08e7794ced086bd7a899791372391ccea2d4b7888453e591636ef"
+      },
+      "selected_by": "chip-reference",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "68230d2f479f39ca6c37ec14f9c4e7fc4c316dd8732c1b4740f80a00408af29f"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.k94.RELEASE.dfu"
+          },
+          "sha256": "32788550d02e3f0d164111be9e8ce8fc0df2b246a8275824aecdcb187a90ef4c"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.k94.RELEASE.dfu"
+          },
+          "sha256": "b6925c08600e910963521347ee7b11c5d9105d5ded414b9b576bfc2bef881294"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/all_flash.k94ap.production/DeviceTree.k94ap.img3"
+          },
+          "sha256": "1501023f66d3404c4bf2b6a0c905cecb144b87629f6a449f0a0a41ceb42eb25d"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

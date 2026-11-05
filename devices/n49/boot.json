@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPhone5,4",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "10.3.3",
+        "build": "14G60",
+        "url": "http://appldnld.apple.com/ios10.3.3/091-23384-20170719-CA966D80-6977-11E7-9F96-3E9100BA0AE3/iPhone_4.0_32bit_10.3.3_14G60_Restore.ipsw",
+        "bytes": 2000885186,
+        "sha256": "8d105cb8174b7538fef3297251fc9debc287292257bd29c792addf5a4ab7ad2e"
+      },
+      "selected_by": "newest",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "059a3b5324fa18669396adbb99e82652ca2c6e30a213463493b0be085adddad2"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.iphone5b.RELEASE.dfu"
+          },
+          "sha256": "e5c426ff9fcf3fc1a18869d0215e0c0deef2ac7012f65319ef500b93d77c6381"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.iphone5b.RELEASE.dfu"
+          },
+          "sha256": "8c971e179369afda0e35e5e201a52cff526bb1bba9719154a349dc4ebccbe2c9"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.n49ap.img3"
+          },
+          "sha256": "bbbf2e9cd171167317acba13e91b3bf9b4bb4f80733c70ddb1ad714eae3f9bb8"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

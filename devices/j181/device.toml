@@ -1,0 +1,13 @@
+# iPad (Wi-Fi, 9th generation) (J181): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j181"
+name = "iPad (Wi-Fi, 9th generation)"
+apple_products = ["iPad12,1"]
+
+[match.dfu]
+chip = 0x8030
+board = 0x18
