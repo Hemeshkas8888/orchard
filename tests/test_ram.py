@@ -353,7 +353,7 @@ class RamTests(unittest.TestCase):
                 patch('orchard.transports.pongo.upload') as upload, \
                 patch('orchard.state.operation_lock', return_value=nullcontext()), \
                 patch('orchard.apple.boot.wait_mode') as wait, \
-                patch.object(boot.shutil, 'which', return_value='/fake/palera1n'), \
+                patch('orchard.apple.boot.ensure_tool', return_value='/fake/palera1n'), \
                 patch('orchard.apple.boot.run_process_group') as execute, \
                 patch('builtins.print') as output:
             boot.boot_ram(self.output, yes=True)

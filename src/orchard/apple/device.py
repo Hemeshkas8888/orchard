@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, cast
 from orchard.contracts import BootAssets, BootRequest, Connection, SelectedDevice
 from orchard.state import BootState, DeviceState
 from orchard.progress import Progress
-from orchard.apple import usb, boot as apple_boot, adt_capture
+from orchard.apple import entries, usb, boot as apple_boot, adt_capture
 from orchard.apple.adt_tree import parse
 from orchard.transports import ssh
 from orchard import firmware, hardware
@@ -24,6 +24,7 @@ RECOVERY_PRODUCT = 'Orchard Recovery'
 
 class Device:
     def __init__(self, descriptor: Dict[str, Any]):
+        self._descriptor = descriptor
         identity = descriptor['device']
         self.PROFILE = identity['profile']
         self.NAME = identity['name']
@@ -83,9 +84,11 @@ class Device:
     def boot(self, device: SelectedDevice, assets: BootAssets,
              manifest: BootRequest, progress: Progress) -> None:
         return apple_boot.boot(device, assets, manifest, progress,
-                               profile=self.PROFILE, chip=self.CHIP, board=self.BOARD, product=self.PRODUCT)
+                               profile=self.PROFILE, chip=self.CHIP, board=self.BOARD, product=self.PRODUCT,
+                               entry=entries.select(self._descriptor))
 
     def start_loader(self, device: SelectedDevice, loader: Dict[str, Path], progress: Progress,
                      quiet: bool = False) -> str:
         return apple_boot.start_loader(device, loader, progress, profile=self.PROFILE,
-                                       chip=self.CHIP, board=self.BOARD, product=self.PRODUCT, quiet=quiet)
+                                       chip=self.CHIP, board=self.BOARD, product=self.PRODUCT, quiet=quiet,
+                                       entry=entries.select(self._descriptor))

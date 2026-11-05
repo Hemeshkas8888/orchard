@@ -45,7 +45,7 @@ class Runtime(unittest.TestCase):
         assets = {'pongo': self.root / 'pongo', 'recovery': self.root / 'boot'}
         record = {'assets': {'recovery': {'sha256': 'expected-digest'}}}
         with patch('orchard.state.cache_root', return_value=self.root), \
-             patch.object(boot.shutil, 'which', return_value='/tools/palera1n'), \
+             patch.object(boot, 'ensure_tool', return_value='/tools/palera1n'), \
              patch.object(adapter_module.usb, 'selected') as selected, \
              patch.object(boot, 'wait_mode') as wait, \
              patch.object(boot, 'run_process_group') as bootstrap, \
