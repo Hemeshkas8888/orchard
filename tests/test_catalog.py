@@ -3,6 +3,7 @@ import importlib.machinery
 import importlib.util
 import json
 from pathlib import Path
+import struct
 import tempfile
 import tomllib
 import unittest
@@ -105,6 +106,53 @@ class Urls(unittest.TestCase):
         self.assertEqual(tool().secure('http://appldnld.apple.com/ios10.3.3/a.ipsw'),
                          'https://secure-appldnld.apple.com/ios10.3.3/a.ipsw')
         self.assertEqual(tool().secure('https://updates.cdn-apple.com/a.ipsw'), 'https://updates.cdn-apple.com/a.ipsw')
+
+
+def flat_tree(*nodes):
+    """A minimal flattened device tree with these nodes ({property: bytes}) under the root."""
+    names, offsets = b'', {}
+    structure = struct.pack('>I', 1) + b'\0' * 4
+    for node in nodes:
+        structure += struct.pack('>I', 1) + b'n\0\0\0'
+        for key, value in node.items():
+            if key not in offsets:
+                offsets[key] = len(names)
+                names += key.encode() + b'\0'
+            structure += struct.pack('>III', 3, len(value), offsets[key]) + value + b'\0' * (-len(value) % 4)
+        structure += struct.pack('>I', 2)
+    structure += struct.pack('>II', 2, 9)
+    start = 40
+    return struct.pack('>4I', 0xd00dfeed, 0, start, start + len(structure)) + b'\0' * 24 + structure + names
+
+
+class KernelReport(unittest.TestCase):
+    WANTED = {'touch': ['apple_z2'], 'storage_write': ['nvme_apple', 'pcie_apple_h9p:apple,nvme-hmb']}
+    DRIVERS = {'apple,j71b-touchscreen': 'apple_z2', 'apple,t8010-pcie': 'pcie_apple_h9p'}
+
+    def bound(self, *nodes):
+        return tool().bound_features(flat_tree(*nodes), self.DRIVERS, self.WANTED)
+
+    def test_a_node_with_a_driver_counts(self):
+        self.assertEqual(self.bound({'compatible': b'apple,j71b-touchscreen\0'}), ['touch'])
+
+    def test_a_disabled_node_does_not(self):
+        self.assertEqual(self.bound({'compatible': b'apple,j71b-touchscreen\0', 'status': b'disabled\0'}), [])
+
+    def test_a_pcie_controller_is_storage_only_with_its_nvme_memory(self):
+        self.assertEqual(self.bound({'compatible': b'apple,t8010-pcie\0'}), [])
+        self.assertEqual(self.bound({'compatible': b'apple,t8010-pcie\0', 'apple,nvme-hmb': b'\0\0\0\x32'}),
+                         ['storage_write'])
+
+    def test_disagreements_are_named(self):
+        odd = tool().disagreements({'features': {'touch': 'working', 'storage_write': 'missing'}},
+                                   ['storage_write'], self.WANTED)
+        self.assertEqual(odd, [('touch', 'working, but no driver binds'),
+                               ('storage_write', 'missing, but a driver binds')])
+
+    def test_the_mapping_names_only_known_features(self):
+        labels = tomllib.loads((ROOT / 'features.toml').read_text())
+        wanted = tomllib.loads((ROOT / 'tools/catalog/feature-drivers.toml').read_text())
+        self.assertEqual(set(wanted) - set(labels), set())
 
 
 class GpuMilestones(unittest.TestCase):

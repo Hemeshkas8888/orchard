@@ -1,0 +1,19 @@
+# Which kernel drivers mean a board could have a feature. tools/catalog/generate
+# kernel looks for an enabled device tree node bound by one of these.
+# "driver:property" also needs that property on the node.
+# Features with nothing to look for (display, suspend, Touch ID...) aren't listed.
+touch = ["apple_z2"]
+buttons = ["gpio_keys"]
+backlight = ["apple_dwi_bl", "apple_pmic_bl"]
+accelerometer = ["apple_aop_accel"]
+light_sensor = ["tsl2583"]
+storage_read = ["nvme_apple", "pcie_apple_h9p:apple,nvme-hmb"]
+storage_write = ["nvme_apple", "pcie_apple_h9p:apple,nvme-hmb"]
+wifi = ["pci_pwrctrl_apple_wifi"]
+bluetooth_input = ["hci_uart"]
+bluetooth_audio = ["hci_uart"]
+battery = ["bq27xxx_battery_hdq", "macsmc_hwmon"]
+charging = ["apple_d2365_charger", "apple_tristar_charger"]
+usb_serial = ["dwc2"]
+usb_network = ["dwc2"]
+audio_output = ["snd_soc_apple_s8000_mca"]
