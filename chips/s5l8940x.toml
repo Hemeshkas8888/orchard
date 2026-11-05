@@ -1,0 +1,16 @@
+# A5 (S5L8940X): facts about the silicon, shared by every board on it.
+schema = 1
+kind = "hardware.chip"
+cpid = 0x8940
+name = "A5"
+soc = "s5l8940x"
+architecture = "arm"
+image_format = "img3"
+platform = "apple-armv7"
+reference_version = "8.4.1"
+stages = ["iBSS", "iBEC"]
+
+[evidence]
+platform = "platform description; Cascadia K93 work"
+stages = "Project Cascadia K93 boot chain"
+reference_version = "Project Cascadia builds its A5 boot chain from 8.4.1 / 12H321"

@@ -1,0 +1,17 @@
+# A8X (T7001): facts about the silicon, shared by every board on it.
+schema = 1
+kind = "hardware.chip"
+cpid = 0x7001
+name = "A8X"
+soc = "t7001"
+core = "typhoon"
+architecture = "arm64"
+page_size = 4096
+image_format = "im4p"
+platform = "apple-4k"
+stages = ["iBSS", "iBEC"]
+
+[evidence]
+page_size = "xnu-6153.141.1 osfmk/arm/proc_reg.h"
+platform = "J81 on hardware"
+stages = "remote_boot two-stage CPID list"

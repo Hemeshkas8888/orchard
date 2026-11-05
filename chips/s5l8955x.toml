@@ -1,0 +1,14 @@
+# A6X (S5L8955X): facts about the silicon, shared by every board on it.
+schema = 1
+kind = "hardware.chip"
+cpid = 0x8955
+name = "A6X"
+soc = "s5l8955x"
+architecture = "arm"
+image_format = "img3"
+platform = "apple-armv7"
+stages = ["iBSS", "iBEC"]
+
+[evidence]
+platform = "32-bit kernelcache in the IPSW; not run"
+stages = "iBSS far smaller than iBEC in the IPSW; not run"

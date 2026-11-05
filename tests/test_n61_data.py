@@ -69,10 +69,12 @@ class DescriptorSchema(unittest.TestCase):
             with self.subTest(profile=profile):
                 self.validator.validate(data.device(profile))
 
-    def test_firmware_is_required_for_every_descriptor(self):
+    def test_firmware_is_required_for_every_board_with_a_kernel(self):
         for profile in data.profiles():
+            candidate = data.device(profile)
+            if 'kernel' not in candidate:
+                continue
             with self.subTest(profile=profile):
-                candidate = data.device(profile)
                 del candidate['firmware']
                 self.assertFalse(self.validator.is_valid(candidate))
 

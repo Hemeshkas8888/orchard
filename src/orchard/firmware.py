@@ -73,7 +73,10 @@ def recipe_for(profile, hardware=None):
         raise ValueError('Invalid device profile')
     descriptor = Path(hardware) / 'devices' / profile / 'device.toml'
     with descriptor.open('rb') as stream:
-        name = tomllib.load(stream)['firmware']['recipe']
+        described = tomllib.load(stream)
+    if 'firmware' not in described:
+        raise ValueError(f'{profile} has no firmware recipe yet')
+    name = described['firmware']['recipe']
     parts = name.split('/')
     if '\\' in name or ':' in name or any(part in ('', '.', '..') for part in parts):
         raise ValueError('Unsafe firmware recipe resource')

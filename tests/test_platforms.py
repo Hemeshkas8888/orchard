@@ -34,7 +34,8 @@ class Platforms(unittest.TestCase):
     def test_every_platform_and_device_resolves_to_a_valid_descriptor(self):
         platforms = sorted(p.stem for p in (SOURCE / 'platforms').glob('*.toml'))
         self.assertIn('apple-16k', platforms)
-        boards = [d.name for d in (SOURCE / 'devices').iterdir() if (d / 'device.toml').is_file()]
+        boards = [d.name for d in (SOURCE / 'devices').iterdir()
+                  if (d / 'device.toml').is_file() and '[kernel]' in (d / 'device.toml').read_text()]
         for name in platforms + boards:
             with self.subTest(name=name):
                 result = self.series('--platform', name)

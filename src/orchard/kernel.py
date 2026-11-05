@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -41,6 +42,8 @@ def layout(hardware, device):
     descriptor = Path(hardware) / 'devices' / device / 'device.toml'
     if not descriptor.is_file():
         raise ValueError(f'Missing hardware recipe input: {descriptor}')
+    if not re.search(r'^\[kernel\]', descriptor.read_text(), re.M):
+        raise ValueError(f'{device} has no kernel yet: its device.toml describes identity only')
     platform, dtb = _series(hardware, '--resolve', device).split()
     if dtb == '-':
         raise ValueError(f'{device} is a kernel platform, not a device')

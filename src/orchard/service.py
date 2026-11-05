@@ -131,11 +131,11 @@ def check_started(connection, user, ready, progress, seconds=180):
 def install(manifest=None, *, input_fn=input, secrets_fn=ask_secrets, progress=None):
     clock, progress = Clock(), progress or Progress()
     adapter, device = choose()  # Definition of installation timing begins here.
+    if not adapter.DEVICETREE:
+        raise ValueError(f'The {adapter.NAME} has no devicetree yet, so an installed system cannot boot on it')
     if not adapter.INSTALL:
         raise ValueError(f'Installing on the {adapter.NAME} is not available yet; '
                          'RAM boot is available for testing')
-    if not adapter.DEVICETREE:
-        raise ValueError(f'The {adapter.NAME} has no devicetree yet, so an installed system cannot boot on it')
     source = manifest or default_manifest(adapter.PROFILE)
     name = select_manifest(source, adapter.PROFILE, None, clock)[0].get('name', 'Linux')
     progress.say(f'Installing {name} on {adapter.NAME}')

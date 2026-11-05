@@ -19,6 +19,9 @@ entry. The iPad 6 gets speakers and an accelerometer for screen rotation.
 
 ### Devices
 
+- Device catalog: every A5–A13 iPad and iPhone board is now described from public
+  sources, with its boot files and a generated compatibility matrix in
+  `docs/compatibility.md`. Orchard doesn't build for the new boards yet.
 - iPhone X (GSM, d221): Linux boots from RAM, with a device description and a
   Wi-Fi firmware recipe. Experimental. (Eduardo Martins)
 - iPad Air (J85): measured RAM-boot status documented. (Christopher M. Smith)

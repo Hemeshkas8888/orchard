@@ -29,6 +29,8 @@ Currently: iPad 6 Wi-Fi (`iPad7,5`, J71b), experimental. Boot is tethered and GP
 
 The iPhone 6 (`iPhone7,2`, N61AP) has experimental tethered support. See the [bring-up record](docs/n61-bringup.md) for its tested features and remaining work.
 
+Every board, chip and feature state: [device compatibility](docs/compatibility.md).
+
 ## Install a system
 
 Follow the install instructions of a distribution, e.g. omarchy-a. Every release

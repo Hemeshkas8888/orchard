@@ -35,7 +35,10 @@ def device(profile):
 
 def firmware_path(profile):
     descriptor = device_path(profile)
-    name = device(profile)['firmware']['recipe']
+    described = device(profile)
+    if 'firmware' not in described:
+        raise ValueError(f'{profile} has no firmware recipe yet')
+    name = described['firmware']['recipe']
     if ('\\' in name or ':' in name or any(part in ('', '.', '..') for part in name.split('/'))):
         raise ValueError('Unsafe firmware recipe resource')
     path = descriptor.parent

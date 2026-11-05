@@ -162,7 +162,7 @@ def select_manifest(source, profile, progress=None, clock=None, purpose='install
                              f'but orchard describes it as {described["kernel"]["platform"]}')
     elif document['device'] != profile:
         raise ValueError('Manifest is not compatible with this device')
-    if document['boot_method'] not in described['boot']['methods']:
+    if document['boot_method'] not in described.get('boot', {}).get('methods', []):
         raise ValueError(f'{profile} does not boot with {document["boot_method"]}')
     if document['boot_method'] != 'checkm8-pongo':
         raise ValueError('This Orchard build implements only checkm8-pongo')

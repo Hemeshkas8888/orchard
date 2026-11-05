@@ -1,0 +1,399 @@
+#!/usr/bin/env python3
+"""The device catalog: what public sources say about every board, and the matrix.
+
+  tools/catalog/generate write --linux TREE    add missing boards, refresh every boot.json
+  tools/catalog/generate check --linux TREE    report where the catalog and public sources differ
+  tools/catalog/generate matrix [--check]      write docs/compatibility.md from the catalog
+
+`write` and `check` read api.ipsw.me, each IPSW's BuildManifest and boot files
+(by byte range, never a whole IPSW) and OrchardLinux/linux. They need Python
+3.11 and nothing else. `write` never edits an existing device.toml, because its
+comments and feature states come from people; it only adds boards that have none.
+A boot.json's "methods" also come from people, and are kept as they are.
+
+Default build of a board, in order: the chip's reference_version when the board
+has it (or the newest build of that major version), the board's firmware recipe
+build, the newest public build. A method that sets "build" adds that build too.
+"""
+import argparse
+import concurrent.futures
+import hashlib
+import io
+import json
+from pathlib import Path
+import plistlib
+import re
+import subprocess
+import sys
+import time
+import tomllib
+import urllib.request
+import zipfile
+
+ROOT = Path(__file__).resolve().parents[2]
+DEVICES = ROOT / 'devices'
+API = 'https://api.ipsw.me/v4'
+HEADERS = {'User-Agent': 'orchard-catalog-generator'}
+FAMILIES = ('iPad', 'iPhone')
+INPUTS = ('iBSS', 'iBEC', 'DeviceTree')
+MATRIX = ROOT / 'docs/compatibility.md'
+# Boards an open pull request adds; generating them here would conflict with it.
+IN_REVIEW = {'j72': 'PR #59'}
+
+
+def request(url, headers=None, method='GET'):
+    for attempt in range(4):
+        try:
+            return urllib.request.urlopen(urllib.request.Request(
+                url, method=method, headers={**HEADERS, **(headers or {})}), timeout=120)
+        except OSError:
+            if attempt == 3:
+                raise
+            time.sleep(attempt + 1)
+
+
+class RemoteFile(io.IOBase):
+    """A seekable file over HTTP byte ranges, for zipfile."""
+
+    def __init__(self, url):
+        self.url, self.position = url, 0
+        self.size = int(request(url, method='HEAD').headers['Content-Length'])
+
+    def seekable(self):
+        return True
+
+    def readable(self):
+        return True
+
+    def tell(self):
+        return self.position
+
+    def seek(self, offset, whence=0):
+        self.position = {0: offset, 1: self.position + offset, 2: self.size + offset}[whence]
+        return self.position
+
+    def read(self, count=-1):
+        count = self.size - self.position if count < 0 else count
+        if count == 0 or self.position >= self.size:
+            return b''
+        last = min(self.position + count, self.size) - 1
+        data = request(self.url, {'Range': f'bytes={self.position}-{last}'}).read()
+        self.position += len(data)
+        return data
+
+
+def chips():
+    """{cpid: chip} from chips/*.toml; the catalog covers exactly these."""
+    return {chip['cpid']: chip for chip in
+            (tomllib.loads(path.read_text()) for path in sorted((ROOT / 'chips').glob('*.toml')))}
+
+
+def public_boards(known):
+    """[(product, public name, board, number of boards of that product)] on a known chip."""
+    result = []
+    for product in json.load(request(f'{API}/devices')):
+        if not product['identifier'].startswith(FAMILIES):
+            continue
+        boards = [board for board in product['boards']
+                  if board['cpid'] in known and 'DEV' not in board['boardconfig']]
+        result += [(product['identifier'], product['name'], board, len(boards)) for board in boards]
+    return result
+
+
+def choose_build(firmwares, chip, recipe_build):
+    """(public firmware, the rule that chose it) of a board's default build."""
+    reference = chip.get('reference_version')
+    if reference:
+        exact = [firmware for firmware in firmwares if firmware['version'] == reference]
+        if exact:
+            return exact[0], 'chip-reference'
+        major = reference.split('.')[0] + '.'
+        same = [firmware for firmware in firmwares if firmware['version'].startswith(major)]
+        if same:
+            return same[0], 'chip-reference-major'
+    if recipe_build:
+        return next(firmware for firmware in firmwares if firmware['buildid'] == recipe_build), 'firmware-recipe'
+    return firmwares[0], 'newest'
+
+
+def read_firmware(firmware, model, selected_by):
+    """One boot.json firmware entry, and the board's identity from the BuildManifest."""
+    archive = zipfile.ZipFile(RemoteFile(firmware['url']))
+    document = archive.read('BuildManifest.plist')
+    manifest = plistlib.loads(document)
+    identities = [identity for identity in manifest['BuildIdentities']
+                  if identity['Info']['DeviceClass'].lower() == model]
+    if not identities:
+        raise ValueError(f'{firmware["buildid"]} has no identity for {model}')
+    identity = next((i for i in identities if 'Erase' in i['Info']['Variant']), identities[0])
+    inputs = {'BuildManifest.plist': {'ipsw': {'zip': 'BuildManifest.plist'},
+                                      'sha256': hashlib.sha256(document).hexdigest()}}
+    names = set(archive.namelist())
+    for role in INPUTS:
+        path = identity['Manifest'].get(role, {}).get('Info', {}).get('Path')
+        if path in names:
+            inputs[role] = {'ipsw': {'zip': path}, 'sha256': hashlib.sha256(archive.read(path)).hexdigest()}
+    entry = {'ipsw': {'version': firmware['version'], 'build': firmware['buildid'], 'url': firmware['url'],
+                      'bytes': firmware['filesize'], 'sha256': firmware['sha256sum']},
+             'selected_by': selected_by, 'inputs': inputs}
+    return entry, int(identity['ApChipID'], 16), int(identity['ApBoardID'], 16)
+
+
+def device_trees(tree):
+    """{dtb name: its source} in OrchardLinux/linux."""
+    result = {}
+    for ref, directory in (('main', 'arch/arm64/boot/dts/apple/'), ('armv7', 'arch/arm/boot/dts/apple/')):
+        listing = subprocess.run(['git', '-C', str(tree), 'ls-tree', '--name-only', ref, directory],
+                                 capture_output=True, text=True, check=True).stdout.split()
+        result.update({path.rsplit('/', 1)[1][:-4]: f'{ref}:{path}' for path in listing if path.endswith('.dts')})
+    return result
+
+
+def board_compatible(tree, source):
+    """The board's own compatible string, from its device tree."""
+    text = subprocess.run(['git', '-C', str(tree), 'show', source], capture_output=True, text=True, check=True).stdout
+    found = re.search(r'compatible\s*=\s*"([^"]+)"', text)
+    return found[1] if found else None
+
+
+def display_name(name, chip, boards):
+    name = name.replace('WiFi', 'Wi-Fi')
+    return f'{name} ({chip["soc"].upper()})' if boards > 1 else name
+
+
+def generate(item, known, trees, tree):
+    """What public sources say about one board: its facts and its boot.json."""
+    product, name, board, boards = item
+    model = board['boardconfig'].lower()
+    profile = model.removesuffix('ap')
+    chip = known[board['cpid']]
+    firmwares = json.load(request(f'{API}/device/{product}?type=ipsw'))['firmwares']
+    path = DEVICES / profile
+    recipe = path / 'firmware.json'
+    recipe_build = json.loads(recipe.read_text())['ipsw']['build'] if recipe.is_file() else None
+    public, rule = choose_build(firmwares, chip, recipe_build)
+    entry, chip_id, board_id = read_firmware(public, model, rule)
+    if (chip_id, board_id) != (board['cpid'], board['bdid']):
+        raise ValueError(f'{profile}: BuildManifest says {chip_id:#x}/{board_id:#x}, '
+                         f'api.ipsw.me {board["cpid"]:#x}/{board["bdid"]:#x}')
+    existing = json.loads((path / 'boot.json').read_text()) if (path / 'boot.json').is_file() else {}
+    methods = existing.get('methods', {})
+    entries = [entry]
+    pins = {method['build'] for method in methods.values() if 'build' in method} - {public['buildid']}
+    for build in sorted(pins):
+        pinned = next(firmware for firmware in firmwares if firmware['buildid'] == build)
+        entries.append(read_firmware(pinned, model, 'method')[0])
+    dtb = f'{chip["soc"]}-{profile}'
+    return {'profile': profile, 'product': product, 'name': display_name(name, chip, boards),
+            'chip': chip_id, 'board': board_id, 'platform': chip.get('platform'),
+            'dtb': dtb if dtb in trees else None,
+            'compatible': board_compatible(tree, trees[dtb]) if dtb in trees else None,
+            'boot': {'schema': 1, 'device': product, 'firmware': entries, 'methods': methods}}
+
+
+def collect(tree):
+    known = chips()
+    trees = device_trees(tree)
+    results, failures = [], []
+    items = public_boards(known)
+    with concurrent.futures.ThreadPoolExecutor(8) as pool:
+        futures = {pool.submit(generate, item, known, trees, tree): item for item in items}
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                results.append(future.result())
+            except Exception as error:  # Report every board, not only the first failure.
+                failures.append(f'{futures[future][2]["boardconfig"]}: {error}')
+    return sorted(results, key=lambda result: result['profile']), failures
+
+
+def boot_text(board):
+    return json.dumps(board['boot'], indent=2) + '\n'
+
+
+def device_text(board):
+    lines = [f'# {board["name"]} ({board["profile"].upper()}): identity from public sources',
+             '# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.',
+             'schema = 1', 'kind = "hardware.device"', '', '[device]',
+             f'profile = "{board["profile"]}"', f'name = "{board["name"]}"',
+             f'apple_products = ["{board["product"]}"]']
+    if board['compatible']:
+        lines.append(f'dt_compatible = ["{board["compatible"]}"]')
+    lines += ['', '[match.dfu]', f'chip = {board["chip"]:#06x}', f'board = {board["board"]:#04x}']
+    if board['dtb']:
+        lines += ['', '[catalog]', f'dtb = "{board["dtb"]}" # Exists in OrchardLinux/linux; not enabled here yet.']
+    return '\n'.join(lines) + '\n'
+
+
+def write(tree):
+    boards, failures = collect(tree)
+    added = 0
+    for board in boards:
+        if board['profile'] in IN_REVIEW:
+            continue
+        path = DEVICES / board['profile']
+        path.mkdir(exist_ok=True)
+        if not (path / 'device.toml').exists():
+            (path / 'device.toml').write_text(device_text(board))
+            added += 1
+        (path / 'boot.json').write_text(boot_text(board))
+    print(f'{len(boards)} boards, {added} added')
+    return failures
+
+
+def differences(board):
+    """[(field, in the catalog, in public sources)] of one board that has a device.toml."""
+    path = DEVICES / board['profile']
+    described = tomllib.loads((path / 'device.toml').read_text())
+    public = {'chip': board['chip'], 'board': board['board'], 'product': [board['product']],
+              'platform': board['platform']}
+    catalog = {'chip': described['match']['dfu']['chip'], 'board': described['match']['dfu']['board'],
+               'product': described['device']['apple_products'],
+               'platform': described.get('kernel', {}).get('platform', board['platform'])}
+    if 'kernel' in described:
+        public['dtb'], catalog['dtb'] = board['dtb'], described['kernel']['dtb']
+    else:
+        public['dtb'], catalog['dtb'] = board['dtb'], described.get('catalog', {}).get('dtb')
+    found = [(field, catalog[field], public[field]) for field in public if catalog[field] != public[field]]
+    recipe = path / 'firmware.json'
+    if recipe.is_file():
+        pin = json.loads(recipe.read_text())['ipsw']
+        firmware = json.load(request(f'{API}/device/{board["product"]}?type=ipsw'))['firmwares']
+        listed = next((item for item in firmware if item['buildid'] == pin['build']), None)
+        if listed is None:
+            found.append(('firmware.json build', pin['build'], 'not public'))
+        else:
+            for field, key in (('url', 'url'), ('bytes', 'filesize'), ('sha256', 'sha256sum')):
+                if pin[field] != listed[key]:
+                    found.append((f'firmware.json {field}', pin[field], listed[key]))
+    stored = path / 'boot.json'
+    if not stored.is_file():
+        found.append(('boot.json', None, 'public'))
+    elif stored.read_text() != boot_text(board):
+        found.append(('boot.json', 'differs', 'run write to refresh'))
+    return found
+
+
+def check(tree):
+    boards, failures = collect(tree)
+    public = {board['profile'] for board in boards}
+    clean = True
+    for board in boards:
+        if board['profile'] in IN_REVIEW:
+            print(f'{board["profile"]}: in review ({IN_REVIEW[board["profile"]]})')
+        elif not (DEVICES / board['profile'] / 'device.toml').is_file():
+            print(f'{board["profile"]}: no device.toml')
+            clean = False
+        else:
+            for field, ours, theirs in differences(board):
+                print(f'{board["profile"]}: {field}: catalog {ours!r}, public {theirs!r}')
+                clean = False
+    for path in sorted(DEVICES.glob('*/device.toml')):
+        if path.parent.name not in public:
+            print(f'{path.parent.name}: not in the public list')
+            clean = False
+    if clean and not failures:
+        print(f'{len(boards)} boards match public sources')
+    return failures + ([] if clean else ['the catalog differs from public sources'])
+
+
+def status_of(described):
+    if 'kernel' not in described:
+        return 'known'
+    return described.get('support', {}).get('status', 'experimental')
+
+
+def cell(value):
+    return value if value else '–'
+
+
+def render():
+    """The compatibility matrix, from the catalog alone."""
+    known = chips()
+    described = {path.parent.name: tomllib.loads(path.read_text()) for path in DEVICES.glob('*/device.toml')}
+    order = {chip['soc']: index for index, chip in enumerate(sorted(known.values(), key=_chip_order))}
+    rows = {}
+    for profile, device in described.items():
+        chip = known[device['match']['dfu']['chip']]
+        rows.setdefault(chip['soc'], []).append((profile, device))
+    lines = ['# Device compatibility', '',
+             'Generated by `tools/catalog/generate matrix` from `devices/`, `chips/` and `methods.toml`; '
+             'do not edit by hand.', '',
+             '- **known:** identity and boot data only, from public sources. Orchard does not build for it yet.',
+             '- **experimental / supported:** Orchard builds for it. Feature states are below.',
+             '- **Device tree:** the board has one in OrchardLinux/linux. It does not mean the board has booted.',
+             '- **boot.json:** the Apple boot files are known. It does not mean a method runs on the board.',
+             '', '## Chips', '',
+             '| Chip | SoC | CPID | Core | Page size | Platform | Stages | Boards | In build | Device tree |',
+             '| --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | ---: |']
+    for soc in sorted(rows, key=order.get):
+        chip = next(chip for chip in known.values() if chip['soc'] == soc)
+        boards = rows[soc]
+        building = sum('kernel' in device for _, device in boards)
+        trees = sum(bool(device.get('kernel', device.get('catalog', {})).get('dtb')) for _, device in boards)
+        stages = ' + '.join(chip.get('stages', [])) or '–'
+        lines.append(f'| {chip["name"]} | {soc.upper()} | `{chip["cpid"]:#06x}` | {cell(chip.get("core"))} | '
+                     f'{chip.get("page_size", "–")} | {cell(chip.get("platform"))} | {stages} | {len(boards)} | '
+                     f'{building} | {trees} |')
+    lines += ['', '## Boards', '',
+              '| Chip | Board | Device | Product | Status | Methods | Firmware | Device tree | boot.json build |',
+              '| --- | --- | --- | --- | --- | --- | --- | --- | --- |']
+    for soc in sorted(rows, key=order.get):
+        chip = next(chip for chip in known.values() if chip['soc'] == soc)
+        for profile, device in sorted(rows[soc]):
+            path = DEVICES / profile
+            boot = json.loads((path / 'boot.json').read_text()) if (path / 'boot.json').is_file() else None
+            build = boot['firmware'][0]['ipsw']['build'] if boot else '–'
+            dtb = device.get('kernel', device.get('catalog', {})).get('dtb')
+            methods = ', '.join(device.get('boot', {}).get('methods', [])) or '–'
+            lines.append(f'| {chip["name"]} | `{profile}` | {device["device"]["name"]} | '
+                         f'{", ".join(device["device"]["apple_products"])} | {status_of(device)} | {methods} | '
+                         f'{"yes" if (path / "firmware.json").is_file() else "–"} | {"yes" if dtb else "–"} | {build} |')
+    lines += ['', 'Not generated while in review: ' + ', '.join(f'`{board}` ({reason})'
+                                                                for board, reason in IN_REVIEW.items()) + '.']
+    labels = tomllib.loads((ROOT / 'features.toml').read_text())
+    lines += ['', '## Features', '', 'Boards Orchard builds for. '
+              'States: working, partial, untested, missing, none (no such hardware).', '',
+              '| Board | ' + ' | '.join(labels.values()) + ' |',
+              '| --- |' + ' --- |' * len(labels)]
+    for soc in sorted(rows, key=order.get):
+        for profile, device in sorted(rows[soc]):
+            if 'kernel' in device:
+                lines.append(f'| `{profile}` | ' + ' | '.join(device['features'][name] for name in labels) + ' |')
+    return '\n'.join(lines) + '\n'
+
+
+def _chip_order(chip):
+    number = re.match(r'A(\d+)(.*)', chip['name'])
+    return int(number[1]), number[2], chip['cpid']
+
+
+def matrix(verify):
+    text = render()
+    if verify:
+        current = MATRIX.read_text() if MATRIX.is_file() else ''
+        return [] if current == text else [f'{MATRIX.name} is stale: run tools/catalog/generate matrix']
+    MATRIX.write_text(text)
+    return []
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    commands = parser.add_subparsers(dest='command', required=True)
+    for name in ('write', 'check'):
+        commands.add_parser(name).add_argument('--linux', type=Path, required=True,
+                                               help='a clone of OrchardLinux/linux with main and armv7')
+    commands.add_parser('matrix').add_argument('--check', action='store_true', help='fail if it is out of date')
+    arguments = parser.parse_args()
+    if arguments.command == 'write':
+        failures = write(arguments.linux)
+    elif arguments.command == 'check':
+        failures = check(arguments.linux)
+    else:
+        failures = matrix(arguments.check)
+    for failure in failures:
+        print('error:', failure, file=sys.stderr)
+    return 1 if failures else 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

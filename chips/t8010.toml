@@ -1,0 +1,17 @@
+# A10 (T8010): facts about the silicon, shared by every board on it.
+schema = 1
+kind = "hardware.chip"
+cpid = 0x8010
+name = "A10"
+soc = "t8010"
+core = "hurricane"
+architecture = "arm64"
+page_size = 16384
+image_format = "im4p"
+platform = "apple-16k"
+stages = ["iBSS"]
+
+[evidence]
+page_size = "xnu-6153.141.1 osfmk/arm/proc_reg.h"
+platform = "J71b on hardware"
+stages = "J71b single-stage on hardware; iBSS and iBEC same size"

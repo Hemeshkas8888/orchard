@@ -57,6 +57,8 @@ Reuse compiled components. Changing `init` should not rebuild Linux. The kernel 
 
 ## 4. Add your board's recipe
 
+Your board probably has a `devices/BOARD/` already, with its identity and `boot.json` from public sources (`tools/catalog/generate`). Bring-up fills in the rest of `device.toml`: `[kernel]`, `[boot]`, `[firmware]`, `[support]` and `[features]`. Remove `[catalog]` when you add `[kernel]`. See [device compatibility](compatibility.md) for what is known about it.
+
 In your worktree:
 
 | Path | Add |
