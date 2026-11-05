@@ -1,0 +1,20 @@
+# iPad Pro (10.5-inch, Cellular) (J208): identity from public sources
+# (tools/catalog/generate). RAM sessions are recorded in docs/bring-up/j208.md; not in the build yet.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j208"
+name = "iPad Pro (10.5-inch, Cellular)"
+apple_products = ["iPad7,4"]
+dt_compatible = ["apple,j208"]
+
+[match.dfu]
+chip = 0x8011
+board = 0x06
+
+[boot]
+methods = ["checkm8-pongo"] # palera1n's device list (palera.in).
+
+[catalog]
+dtb = "t8011-j208" # Exists in OrchardLinux/linux; not enabled here yet.

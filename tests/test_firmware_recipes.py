@@ -12,8 +12,10 @@ RECIPES = sorted(ROOT.glob('devices/*/firmware.json'))
 
 
 class FirmwareRecipes(unittest.TestCase):
-    def test_every_board_with_a_descriptor_has_a_recipe(self):
+    def test_every_board_orchard_builds_for_has_a_recipe(self):
         for descriptor in sorted(ROOT.glob('devices/*/device.toml')):
+            if '[kernel]' not in descriptor.read_text():
+                continue
             with self.subTest(board=descriptor.parent.name):
                 self.assertTrue((descriptor.parent / 'firmware.json').is_file())
 

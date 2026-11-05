@@ -39,16 +39,16 @@ def save_report(path, report):
 
 
 def caveats(adapter):
-    """What to know before installing: features that are not working, free-text caveats."""
+    """What to know before installing: the features that are not working."""
     from . import hardware
     labels = hardware.features()
-    groups = {'missing': 'Not working yet', 'partial': 'Partly working', 'untested': 'Untested'}
+    groups = {'missing': 'Not working yet', 'untested': 'Untested'}
     rows = []
     for state, title in groups.items():
         names = [label for name, label in labels.items() if adapter.FEATURES.get(name) == state]
         if names:
             rows.append(f'- {title}: ' + ', '.join(names))
-    lines = ['Caveats:', *rows, *(f'- {text}' for text in adapter.CAVEATS)] if rows or adapter.CAVEATS else []
+    lines = ['Caveats:', *rows] if rows else []
     if adapter.STATUS != 'supported':
         lines.append('This device has not been tested yet, proceed at your own risk!')
     return lines
@@ -132,10 +132,9 @@ def install(manifest=None, *, input_fn=input, secrets_fn=ask_secrets, progress=N
     clock, progress = Clock(), progress or Progress()
     adapter, device = choose()  # Definition of installation timing begins here.
     if not adapter.INSTALL:
-        raise ValueError(f'Installing on the {adapter.NAME} is not available yet; '
-                         'RAM boot is available for testing')
-    if not adapter.DEVICETREE:
-        raise ValueError(f'The {adapter.NAME} has no devicetree yet, so an installed system cannot boot on it')
+        ram = ' RAM boot is available for testing.' if adapter.DEVICETREE else ''
+        raise ValueError(f'Installing on the {adapter.NAME} is not available yet: '
+                         f'{"; ".join(adapter.INSTALL_BLOCKERS)}.{ram}')
     source = manifest or default_manifest(adapter.PROFILE)
     name = select_manifest(source, adapter.PROFILE, None, clock)[0].get('name', 'Linux')
     progress.say(f'Installing {name} on {adapter.NAME}')

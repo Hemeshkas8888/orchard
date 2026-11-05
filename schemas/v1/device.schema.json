@@ -44,8 +44,7 @@
       "required": [
         "profile",
         "name",
-        "apple_products",
-        "dt_compatible"
+        "apple_products"
       ],
       "additionalProperties": false
     },
@@ -101,6 +100,15 @@
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9._-]*$"
           }
+        },
+        "entries": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]*$"
+          }
         }
       },
       "required": [
@@ -142,36 +150,15 @@
     "support": {
       "type": "object",
       "properties": {
-        "wifi": {
-          "type": "boolean"
-        },
-        "usb_serial": {
-          "type": "boolean"
-        },
-        "usb_network": {
-          "type": "boolean"
-        },
-        "install": {
-          "type": "boolean"
-        },
         "status": {
           "enum": [
             "supported",
             "experimental"
           ]
-        },
-        "caveats": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
         }
       },
       "required": [
-        "wifi",
-        "usb_serial",
-        "usb_network"
+        "status"
       ],
       "additionalProperties": false
     },
@@ -181,61 +168,14 @@
         "display": {
           "enum": [
             "working",
-            "partial",
             "untested",
             "missing",
             "none"
           ]
         },
-        "touch": {
+        "screen_off": {
           "enum": [
             "working",
-            "partial",
-            "untested",
-            "missing",
-            "none"
-          ]
-        },
-        "wifi": {
-          "enum": [
-            "working",
-            "partial",
-            "untested",
-            "missing",
-            "none"
-          ]
-        },
-        "bluetooth": {
-          "enum": [
-            "working",
-            "partial",
-            "untested",
-            "missing",
-            "none"
-          ]
-        },
-        "storage": {
-          "enum": [
-            "working",
-            "partial",
-            "untested",
-            "missing",
-            "none"
-          ]
-        },
-        "battery": {
-          "enum": [
-            "working",
-            "partial",
-            "untested",
-            "missing",
-            "none"
-          ]
-        },
-        "charging": {
-          "enum": [
-            "working",
-            "partial",
             "untested",
             "missing",
             "none"
@@ -244,7 +184,14 @@
         "backlight": {
           "enum": [
             "working",
-            "partial",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "touch": {
+          "enum": [
+            "working",
             "untested",
             "missing",
             "none"
@@ -253,25 +200,78 @@
         "buttons": {
           "enum": [
             "working",
-            "partial",
             "untested",
             "missing",
             "none"
           ]
         },
-        "audio": {
+        "accelerometer": {
           "enum": [
             "working",
-            "partial",
             "untested",
             "missing",
             "none"
           ]
         },
-        "camera": {
+        "gyroscope": {
           "enum": [
             "working",
-            "partial",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "light_sensor": {
+          "enum": [
+            "working",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "touch_id": {
+          "enum": [
+            "working",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "storage_read": {
+          "enum": [
+            "working",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "storage_write": {
+          "enum": [
+            "working",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "wifi": {
+          "enum": [
+            "working",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "bluetooth_input": {
+          "enum": [
+            "working",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "bluetooth_audio": {
+          "enum": [
+            "working",
             "untested",
             "missing",
             "none"
@@ -280,7 +280,30 @@
         "cellular": {
           "enum": [
             "working",
-            "partial",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "battery": {
+          "enum": [
+            "working",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "charging": {
+          "enum": [
+            "working",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "charging_control": {
+          "enum": [
+            "working",
             "untested",
             "missing",
             "none"
@@ -289,16 +312,54 @@
         "suspend": {
           "enum": [
             "working",
-            "partial",
             "untested",
             "missing",
             "none"
           ]
         },
-        "gpu": {
+        "resume": {
           "enum": [
             "working",
-            "partial",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "usb_serial": {
+          "enum": [
+            "working",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "usb_network": {
+          "enum": [
+            "working",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "audio_output": {
+          "enum": [
+            "working",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "audio_input": {
+          "enum": [
+            "working",
+            "untested",
+            "missing",
+            "none"
+          ]
+        },
+        "camera": {
+          "enum": [
+            "working",
             "untested",
             "missing",
             "none"
@@ -307,20 +368,42 @@
       },
       "required": [
         "display",
+        "screen_off",
+        "backlight",
         "touch",
+        "buttons",
+        "accelerometer",
+        "gyroscope",
+        "light_sensor",
+        "touch_id",
+        "storage_read",
+        "storage_write",
         "wifi",
-        "bluetooth",
-        "storage",
+        "bluetooth_input",
+        "bluetooth_audio",
+        "cellular",
         "battery",
         "charging",
-        "backlight",
-        "buttons",
-        "audio",
-        "camera",
-        "cellular",
+        "charging_control",
         "suspend",
-        "gpu"
+        "resume",
+        "usb_serial",
+        "usb_network",
+        "audio_output",
+        "audio_input",
+        "camera"
       ],
+      "additionalProperties": false
+    },
+    "catalog": {
+      "type": "object",
+      "description": "Facts about a board with no [kernel] yet.",
+      "properties": {
+        "dtb": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+        }
+      },
       "additionalProperties": false
     }
   },
@@ -328,12 +411,27 @@
     "schema",
     "kind",
     "device",
-    "match",
-    "kernel",
-    "boot",
-    "firmware",
-    "support",
-    "features"
+    "match"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "if": {
+    "required": [
+      "kernel"
+    ]
+  },
+  "then": {
+    "required": [
+      "boot",
+      "firmware",
+      "support",
+      "features"
+    ],
+    "properties": {
+      "device": {
+        "required": [
+          "dt_compatible"
+        ]
+      }
+    }
+  }
 }

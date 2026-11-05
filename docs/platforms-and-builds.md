@@ -489,11 +489,12 @@ designed in detail:
   non-transactional `--live` mode for desktop iteration updates a bounded set
   of owned files and restarts services, in seconds. Today there are only
   `orchard push/pull/exec` for RAM sessions and a full install.
-- **Capability levels instead of one install flag.** A board is observed,
-  bootable, storage-capable, installable or desktop-qualified, and what
-  orchard permits (installing above all) follows what has been demonstrated;
-  today `device.toml` has `install = true/false` plus features and caveats.
-  Unknown hardware gets bounded observation, never a speculative install.
+- **Per-distribution minimum requirements.** Installation follows from what a
+  board has: a kernel and device tree, a boot method this Orchard implements
+  (with its `boot.json` if it needs one), a firmware recipe and writable
+  internal storage (`hardware.install_blockers`). While this is experimental
+  that deliberately allows boards where other things don't work yet. A
+  distribution could later require more, such as working Wi-Fi or touch.
 - **The simulator as a target of the same workflow** (`--target simulator`):
   the same userspace and packaging as the devices with a VM kernel and
   virtual peripherals, so contributors without Apple hardware can work on

@@ -1,0 +1,15 @@
+# A13 (T8030): facts about the silicon, shared by every board on it.
+schema = 1
+kind = "hardware.chip"
+cpid = 0x8030
+name = "A13"
+soc = "t8030"
+core = "lightning"
+architecture = "arm64"
+page_size = 16384
+image_format = "im4p"
+reference_version = "16.4"
+
+[evidence]
+page_size = "xnu-6153.141.1 osfmk/arm/proc_reg.h"
+reference_version = "Project Cascadia N104 uses 16.4 / 20E247"

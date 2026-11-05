@@ -1,0 +1,13 @@
+# iPad Air 3 (Cellular) (J218): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j218"
+name = "iPad Air 3 (Cellular)"
+apple_products = ["iPad11,4"]
+
+[match.dfu]
+chip = 0x8020
+board = 0x1e

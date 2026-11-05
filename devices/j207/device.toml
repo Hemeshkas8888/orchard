@@ -1,0 +1,20 @@
+# iPad Pro (10.5-inch, Wi-Fi) (J207): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j207"
+name = "iPad Pro (10.5-inch, Wi-Fi)"
+apple_products = ["iPad7,3"]
+dt_compatible = ["apple,j207"]
+
+[match.dfu]
+chip = 0x8011
+board = 0x04
+
+[boot]
+methods = ["checkm8-pongo"] # palera1n's device list (palera.in); not run with Orchard yet.
+
+[catalog]
+dtb = "t8011-j207" # Exists in OrchardLinux/linux; not enabled here yet.

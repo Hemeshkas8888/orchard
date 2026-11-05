@@ -44,8 +44,7 @@ class HostWorkflow(unittest.TestCase):
     def test_experimental_device_shows_caveats_and_still_defaults_to_yes(self):
         from unittest.mock import Mock
         adapter = Mock(NAME='Untested tablet', PROFILE='device', INSTALL=True, STATUS='experimental',
-                       FEATURES={'touch': 'missing', 'wifi': 'untested', 'display': 'working', 'cellular': 'none'},
-                       CAVEATS=['Bluetooth needs its module vendor chosen per unit.'])
+                       FEATURES={'touch': 'missing', 'wifi': 'untested', 'display': 'working', 'cellular': 'none'})
         prompts = []
         with patch('orchard.service.choose', return_value=(adapter, {'mode': 'dfu'})), \
              patch('orchard.service.select_manifest', return_value=({'name': 'Omarchy'}, None)), \
@@ -60,7 +59,6 @@ class HostWorkflow(unittest.TestCase):
         self.assertIn('- Untested: Wi-Fi', text)
         self.assertNotIn('Display', text)
         self.assertNotIn('Cellular', text)
-        self.assertIn('- Bluetooth needs its module vendor chosen per unit.', text)
         self.assertIn('not been tested yet, proceed at your own risk', text)
         assets.assert_not_called()
 

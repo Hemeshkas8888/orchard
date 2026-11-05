@@ -1,0 +1,20 @@
+# iPad Pro 2 (12.9-inch, Cellular) (J121): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j121"
+name = "iPad Pro 2 (12.9-inch, Cellular)"
+apple_products = ["iPad7,2"]
+dt_compatible = ["apple,j121"]
+
+[match.dfu]
+chip = 0x8011
+board = 0x0e
+
+[boot]
+methods = ["checkm8-pongo"] # palera1n's device list (palera.in); not run with Orchard yet.
+
+[catalog]
+dtb = "t8011-j121" # Exists in OrchardLinux/linux; not enabled here yet.

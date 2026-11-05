@@ -1,0 +1,20 @@
+# iPad Pro 12.9-inch (Wi-Fi) (J98A): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j98a"
+name = "iPad Pro 12.9-inch (Wi-Fi)"
+apple_products = ["iPad6,7"]
+dt_compatible = ["apple,j98a"]
+
+[match.dfu]
+chip = 0x8001
+board = 0x10
+
+[boot]
+methods = ["checkm8-pongo"] # palera1n's device list (palera.in); not run with Orchard yet.
+
+[catalog]
+dtb = "s8001-j98a" # Exists in OrchardLinux/linux; not enabled here yet.

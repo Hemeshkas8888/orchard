@@ -1,0 +1,17 @@
+# iPhone 11 (N104): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "n104"
+name = "iPhone 11"
+apple_products = ["iPhone12,1"]
+
+[match.dfu]
+chip = 0x8030
+board = 0x04
+
+[boot]
+methods = ["custom-dfu-recovery"]
+entries = ["usbliter8"]

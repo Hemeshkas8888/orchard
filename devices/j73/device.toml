@@ -1,0 +1,17 @@
+# iPad Air (China) (J73): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j73"
+name = "iPad Air (China)"
+apple_products = ["iPad4,3"]
+dt_compatible = ["apple,j73"]
+
+[match.dfu]
+chip = 0x8960
+board = 0x14
+
+[catalog]
+dtb = "s5l8960x-j73" # Exists in OrchardLinux/linux; not enabled here yet.

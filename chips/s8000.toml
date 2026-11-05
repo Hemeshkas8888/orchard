@@ -1,0 +1,17 @@
+# A9 (S8000): facts about the silicon, shared by every board on it.
+schema = 1
+kind = "hardware.chip"
+cpid = 0x8000
+name = "A9"
+soc = "s8000"
+core = "twister"
+architecture = "arm64"
+page_size = 16384
+image_format = "im4p"
+platform = "apple-16k"
+stages = ["iBSS", "iBEC"]
+
+[evidence]
+page_size = "xnu-6153.141.1 osfmk/arm/proc_reg.h"
+platform = "xnu; same core as S8003, which ran on J71t"
+stages = "remote_boot two-stage CPID list"

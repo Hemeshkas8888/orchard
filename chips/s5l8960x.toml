@@ -1,0 +1,17 @@
+# A7 (S5L8960X): facts about the silicon, shared by every board on it.
+schema = 1
+kind = "hardware.chip"
+cpid = 0x8960
+name = "A7"
+soc = "s5l8960x"
+core = "cyclone"
+architecture = "arm64"
+page_size = 4096
+image_format = "im4p"
+platform = "apple-4k"
+stages = ["iBSS", "iBEC"]
+
+[evidence]
+page_size = "xnu-4903.221.2 osfmk/arm/proc_reg.h"
+platform = "J72 RAM bring-up (PR #59)"
+stages = "remote_boot two-stage CPID list"

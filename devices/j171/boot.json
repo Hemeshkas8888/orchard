@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPad7,11",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "17.7",
+        "build": "21H16",
+        "url": "https://updates.cdn-apple.com/2024FallFCS/fullrestores/062-78914/A081E8C4-D00A-4FC5-A650-A42EA1726236/iPad_10.2_17.7_21H16_Restore.ipsw",
+        "bytes": 6859455047,
+        "sha256": "16381681602fb60e9b664a9b03c91050c1e9033eaf066323ac0edac2393ee983"
+      },
+      "selected_by": "firmware-recipe",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "8dfc8f210a98d30ef9a88818efeffe060970016e7ccb2d10a4a9d9e31a64e882"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.ipad7c.RELEASE.im4p"
+          },
+          "sha256": "18894f6f52966be21b5b0b9442012f38b9f5118d50162db0e44996fd06c2a88f"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.ipad7c.RELEASE.im4p"
+          },
+          "sha256": "122d7a4accab5ed8054cb28382a81524d7b8f9de5209d9efad199b217a72752e"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.j171ap.im4p"
+          },
+          "sha256": "1d5ce5ee967b98df2b0017931d3a18b77add92f8902b42b12061ab5e21fd0ebb"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

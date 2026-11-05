@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPad5,2",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "15.8.8",
+        "build": "19H422",
+        "url": "https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77369/9704B32E-FACF-4595-93E4-E35EDD25E793/iPad_64bit_TouchID_15.8.8_19H422_Restore.ipsw",
+        "bytes": 5046203202,
+        "sha256": "4de5c8c453328205b1e741faae218ee0f7848993334ff77f690c5a64a765a623"
+      },
+      "selected_by": "newest",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "21d1cd8a220e47ec65008e3bd49d79c97935e30526f3ddba356f33367c4186f4"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.ipad5.RELEASE.im4p"
+          },
+          "sha256": "00f7d3e5a3166aedc1796c138ad2de116d30d6936c24a04e3b54bacfe1a61ac3"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.ipad5.RELEASE.im4p"
+          },
+          "sha256": "15bfe1aaf170500ab00f67d967a3f4e37269acfd74eaaaa6efa161f1ba396553"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.j97ap.im4p"
+          },
+          "sha256": "da969d80e03e65d0cad3aad8b93f9bea927d472d9134342630ecd277bf414165"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPhone5,2",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "10.3.4",
+        "build": "14G61",
+        "url": "https://updates.cdn-apple.com/2019/ios/091-25277-20190722-0C1B94DE-992C-11E9-A2EE-E2C9A77C2E40/iPhone_4.0_32bit_10.3.4_14G61_Restore.ipsw",
+        "bytes": 2000796302,
+        "sha256": "31b4e67cdeae511bd27ff8a2a285753f7ac9608b8d848e1dec68efc980108695"
+      },
+      "selected_by": "newest",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "579ec834734372c9ef66071d12e0cf9e349be0e6ef15912b4ae9e04b0009daf2"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.iphone5.RELEASE.dfu"
+          },
+          "sha256": "5bbe5e485e00735040da0dbfa705640574f4650af28e959a8ba5be5b6e6fd4b2"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.iphone5.RELEASE.dfu"
+          },
+          "sha256": "68062186f6603179102949253dde530cc0bc347b637d227c42ddf236c98dc38d"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.n42ap.img3"
+          },
+          "sha256": "26a3f0db29d78627698dee1cfc7ef3621b4fab5c748f0529c9e41f3d3871ea07"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

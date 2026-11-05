@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPhone10,1",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "16.7.16",
+        "build": "20H392",
+        "url": "https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77002/0281BFC6-38ED-485A-A8BE-8871861174B1/iPhone_4.7_P3_16.7.16_20H392_Restore.ipsw",
+        "bytes": 6035280776,
+        "sha256": "601cb23e740dacf8b61271fe02ffd5b3c146b518abb5a6e6b286e5f0475fe43b"
+      },
+      "selected_by": "newest",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "d8e9ad51b7f404f9a7f90ed10b8d08e31c5db958b646b853c22a34cd9eb0e6e1"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.d20.RELEASE.im4p"
+          },
+          "sha256": "be6e3c237ecbc576c04dc253e26817b178903c4ef4f11efd7c52cefbf43d8cd4"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.d20.RELEASE.im4p"
+          },
+          "sha256": "2fc7d4df83de49998c5a5f30f28fb8abdaac0e728ab01f53b4ad752f6eb90ceb"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.d20ap.im4p"
+          },
+          "sha256": "e0b36f00b4208badf0ccc0900ffb7bd61d188f44b30338b1616da91d3506e7e4"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

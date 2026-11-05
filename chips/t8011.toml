@@ -1,0 +1,17 @@
+# A10X (T8011): facts about the silicon, shared by every board on it.
+schema = 1
+kind = "hardware.chip"
+cpid = 0x8011
+name = "A10X"
+soc = "t8011"
+core = "hurricane"
+architecture = "arm64"
+page_size = 16384
+image_format = "im4p"
+platform = "apple-16k"
+stages = ["iBSS"]
+
+[evidence]
+page_size = "xnu-6153.141.1 osfmk/arm/proc_reg.h"
+platform = "J208 RAM sessions (contrib/vividmuse-j208)"
+stages = "iBSS and iBEC same size in the IPSW; not run"

@@ -1,4 +1,5 @@
 """The hardware data of this checkout: device descriptors, features, firmware recipes, loaders."""
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -29,13 +30,50 @@ def features():
     return tomllib.loads((ROOT / 'features.toml').read_text())
 
 
+def methods():
+    """Boot methods a device.toml can list, and what each needs (methods.toml)."""
+    return tomllib.loads((ROOT / 'methods.toml').read_text())
+
+
 def device(profile):
     return tomllib.loads(device_path(profile).read_text())
 
 
+def install_blockers(profile, described=None):
+    """Why this Orchard can't install on a board: [] when it can.
+
+    Installation follows from what a board has, so experimental boards get it
+    as soon as it could work, even if other features don't work yet.
+    """
+    described = device(profile) if described is None else described
+    blockers = []
+    if 'kernel' not in described:
+        blockers.append('it has no kernel or device tree yet')
+    if not any(_method_usable(profile, name) for name in described.get('boot', {}).get('methods', [])):
+        blockers.append('this Orchard has no boot method for it yet')
+    if 'firmware' not in described:
+        blockers.append('it has no firmware recipe yet')
+    if described.get('features', {}).get('storage_write', 'missing') == 'missing':
+        blockers.append('its internal storage cannot be written yet')
+    return blockers
+
+
+def _method_usable(profile, name):
+    method = methods().get(name, {})
+    if method.get('implemented_in') != 'orchard':
+        return False
+    if not method['boot_json']:
+        return True
+    recipe = device_path(profile).parent / 'boot.json'
+    return recipe.is_file() and name in json.loads(recipe.read_text())['methods']
+
+
 def firmware_path(profile):
     descriptor = device_path(profile)
-    name = device(profile)['firmware']['recipe']
+    described = device(profile)
+    if 'firmware' not in described:
+        raise ValueError(f'{profile} has no firmware recipe yet')
+    name = described['firmware']['recipe']
     if ('\\' in name or ':' in name or any(part in ('', '.', '..') for part in name.split('/'))):
         raise ValueError('Unsafe firmware recipe resource')
     path = descriptor.parent

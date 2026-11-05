@@ -1,0 +1,17 @@
+# iPhone 6+ (N56): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "n56"
+name = "iPhone 6+"
+apple_products = ["iPhone7,1"]
+dt_compatible = ["apple,n56"]
+
+[match.dfu]
+chip = 0x7000
+board = 0x04
+
+[catalog]
+dtb = "t7000-n56" # Exists in OrchardLinux/linux; not enabled here yet.

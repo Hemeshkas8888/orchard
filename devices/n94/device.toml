@@ -1,0 +1,13 @@
+# iPhone 4s (N94): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "n94"
+name = "iPhone 4s"
+apple_products = ["iPhone4,1"]
+
+[match.dfu]
+chip = 0x8940
+board = 0x08

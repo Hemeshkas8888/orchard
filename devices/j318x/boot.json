@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPad8,4",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "18.6.2",
+        "build": "22G100",
+        "url": "https://updates.cdn-apple.com/2025SummerFCS/fullrestores/093-21358/FEA95F7D-FC7C-4E21-AAE8-942625B9980F/iPad_Pro_A12X_A12Z_18.6.2_22G100_Restore.ipsw",
+        "bytes": 8818405689,
+        "sha256": "0deb40dd41973bb078c519d8ac2b52cff9caeee32613dbdf52cde432da7926cf"
+      },
+      "selected_by": "chip-reference-major",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "8e39e98e2cf69b1235103c29738dd0a1f11165ecbcb7e554cff77ba87a221dbe"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.j317x.RELEASE.im4p"
+          },
+          "sha256": "8bfb456173b2a0f6dd1818640bde9f8e83498ef6757e75077102caa0ba03eea8"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.j317x.RELEASE.im4p"
+          },
+          "sha256": "787dbd6c4f87c85a2cafbf4f472231f76901e02bbdb861b8005b3f8b35e2eb9c"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.j318xap.im4p"
+          },
+          "sha256": "f87cb9cb04f4b2a1bac035194ee2f5a564006a54841be7220e41d28b020c1239"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

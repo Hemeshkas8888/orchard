@@ -1,0 +1,13 @@
+# iPad (Cellular, 9th generation) (J182): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j182"
+name = "iPad (Cellular, 9th generation)"
+apple_products = ["iPad12,2"]
+
+[match.dfu]
+chip = 0x8030
+board = 0x1a

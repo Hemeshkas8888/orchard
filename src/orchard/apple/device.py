@@ -14,7 +14,7 @@ from orchard.progress import Progress
 from orchard.apple import usb, boot as apple_boot, adt_capture
 from orchard.apple.adt_tree import parse
 from orchard.transports import ssh
-from orchard import firmware
+from orchard import firmware, hardware
 from .adt import validate as validate_adt
 
 
@@ -35,9 +35,9 @@ class Device:
         dtb = descriptor.get('kernel', {}).get('dtb')
         self.DEVICETREE = dtb + '.dtb' if dtb else None
         support = descriptor.get('support', {})
-        self.INSTALL = bool(support.get('install', False))
+        self.INSTALL_BLOCKERS = hardware.install_blockers(self.PROFILE, descriptor)
+        self.INSTALL = not self.INSTALL_BLOCKERS
         self.STATUS = support.get('status', 'experimental')
-        self.CAVEATS = list(support.get('caveats', []))
         self.FEATURES = dict(descriptor.get('features', {}))
         self.REBOOT_MESSAGE = ('A fresh recovery boot is required.\n'
                                f'Put the {self.NAME} in DFU mode, then run: orchard install')

@@ -1,0 +1,20 @@
+# iPhone 6s (S8000) (N71): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "n71"
+name = "iPhone 6s (S8000)"
+apple_products = ["iPhone8,1"]
+dt_compatible = ["apple,n71"]
+
+[match.dfu]
+chip = 0x8000
+board = 0x04
+
+[boot]
+methods = ["checkm8-pongo"] # palera1n's device list (palera.in); not run with Orchard yet.
+
+[catalog]
+dtb = "s8000-n71" # Exists in OrchardLinux/linux; not enabled here yet.

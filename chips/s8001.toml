@@ -1,0 +1,17 @@
+# A9X (S8001): facts about the silicon, shared by every board on it.
+schema = 1
+kind = "hardware.chip"
+cpid = 0x8001
+name = "A9X"
+soc = "s8001"
+core = "twister"
+architecture = "arm64"
+page_size = 16384
+image_format = "im4p"
+platform = "apple-16k"
+stages = ["iBSS", "iBEC"]
+
+[evidence]
+page_size = "xnu-6153.141.1 osfmk/arm/proc_reg.h"
+platform = "xnu only; not run"
+stages = "remote_boot two-stage CPID list"

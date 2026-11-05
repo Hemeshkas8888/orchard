@@ -1,0 +1,17 @@
+# A8 (T7000): facts about the silicon, shared by every board on it.
+schema = 1
+kind = "hardware.chip"
+cpid = 0x7000
+name = "A8"
+soc = "t7000"
+core = "typhoon"
+architecture = "arm64"
+page_size = 4096
+image_format = "im4p"
+platform = "apple-4k"
+stages = ["iBSS", "iBEC"]
+
+[evidence]
+page_size = "xnu-6153.141.1 osfmk/arm/proc_reg.h"
+platform = "N61 on hardware"
+stages = "remote_boot two-stage CPID list"

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPad7,4",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "17.7.11",
+        "build": "21H461",
+        "url": "https://updates.cdn-apple.com/2025SpringFCS/fullrestores/122-77166/DCA6CFE8-90E9-4B92-880D-3DE171798E40/iPad_Pro_HFR_17.7.11_21H461_Restore.ipsw",
+        "bytes": 6835124840,
+        "sha256": "c84ad24b6981a859eec499b1802be9ac593acfd3dc0a185a76d06e4d767a1451"
+      },
+      "selected_by": "newest",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "199fb5de41c26d86c080b4e8e402c40309c5f42e7bda18c210451b09bcb49bf7"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.j207.RELEASE.im4p"
+          },
+          "sha256": "441ee90d0539527b659acca518a108ef024e6ad9a04d1a6237693c0ca21e183a"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.j207.RELEASE.im4p"
+          },
+          "sha256": "3736524af6c9aa789a0e60103ab656a5f160636fa792bb8e0149b5c668de60d3"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.j208ap.im4p"
+          },
+          "sha256": "e01305edf26bfd3b8368fb47a9fdb8b91533677f38366ece720183e8e5943018"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPhone7,1",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "12.5.8",
+        "build": "16H88",
+        "url": "https://updates.cdn-apple.com/2026WinterFCS/fullrestores/047-28560/F34191C2-8CF5-4B8F-BCFB-2BDEEC68D668/iPhone_5.5_12.5.8_16H88_Restore.ipsw",
+        "bytes": 3185161646,
+        "sha256": "2fffa7ea14ff3ebbac6db8e3589a31f387a45b9ef2f2387767a529f62c122b74"
+      },
+      "selected_by": "newest",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "f5a411235c0d7d9264fb9454134bbc9b529a3022abdafdf62a7085d9f903f885"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.n56.RELEASE.im4p"
+          },
+          "sha256": "2b6c2e4bdee0fe26a14c0b9a4f9e96780e0f6707e1ec1b910411a8e2fa14c137"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.n56.RELEASE.im4p"
+          },
+          "sha256": "b4205bbd6e6b4b54404c7f6bd27f4bf59c2796f491aa07e60b90e1ae874f9d47"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/DeviceTree.n56ap.im4p"
+          },
+          "sha256": "ad444ce60ed5f4f45884988234c9699754737e3c655e468d03f6d96dcea62ab8"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

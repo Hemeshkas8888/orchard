@@ -1,0 +1,13 @@
+# iPad 8 (Wi-Fi) (J171A): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j171a"
+name = "iPad 8 (Wi-Fi)"
+apple_products = ["iPad11,6"]
+
+[match.dfu]
+chip = 0x8020
+board = 0x24

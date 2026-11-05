@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "device": "iPad3,2",
+  "firmware": [
+    {
+      "ipsw": {
+        "version": "9.3.6",
+        "build": "13G37",
+        "url": "https://updates.cdn-apple.com/2019/ios/041-80039-20190722-E632D5D2-2F3C-498F-B83F-7067D9D90B33/iPad3,2_9.3.6_13G37_Restore.ipsw",
+        "bytes": 1705789101,
+        "sha256": "c9d8d22af51fb1e0cf9cd6ee24f37cf350538bbf062f0aebbe494b2796159f22"
+      },
+      "selected_by": "newest",
+      "inputs": {
+        "BuildManifest.plist": {
+          "ipsw": {
+            "zip": "BuildManifest.plist"
+          },
+          "sha256": "1d75f15365f15569f1e9db04ec8bb295cbd0be1117e83415c2bd434265cf8ad5"
+        },
+        "iBSS": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBSS.j2.RELEASE.dfu"
+          },
+          "sha256": "df6656b9f83e579fec495d4b86a890f7dbbe9955d19a73133c7a226b6aed0199"
+        },
+        "iBEC": {
+          "ipsw": {
+            "zip": "Firmware/dfu/iBEC.j2.RELEASE.dfu"
+          },
+          "sha256": "1ad9985a5e0c43fca8336abb09c3b846a45b5c0ab6e0cc86125e956f80756f3e"
+        },
+        "DeviceTree": {
+          "ipsw": {
+            "zip": "Firmware/all_flash/all_flash.j2ap.production/DeviceTree.j2ap.img3"
+          },
+          "sha256": "dffe53c1b925f2b72d6e42666be887431775d8c15c384badc100fefd41f3e858"
+        }
+      }
+    }
+  ],
+  "methods": {}
+}

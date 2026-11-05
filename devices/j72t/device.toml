@@ -29,31 +29,32 @@ dtb = "s8003-j72t"     # arch/arm64/boot/dts/apple/<dtb>.dtb
 recipe = "firmware.json" # Relative to this device.toml; public recipe, not firmware bytes.
 
 [support]
-install = true
 status = "experimental"
-caveats = [
-  "RAM boot (storage, PCIe, display, touch, ALS, Wi-Fi) tested on a J71t in OrchardLinux/hardware#28, before the move onto main; installation is not tested on a device yet.",
-  "Boot with Hoolock's prebuilt Pongo (orchard build --pongo FILE); Orchard's own Pongo does not boot on the A9 yet.",
-  "Cellular has no Linux driver.",
-  "Charging: Apple chargers and USB-C sources up to 2.4 A; computers per the host's own grant; other sources 500 mA.",
-]
-wifi = true
-usb_serial = true
-usb_network = true
 
-# States: working, partial, untested, missing, none (features.toml).
+# States: working, untested, missing, none (features.toml).
 [features]
 display = "untested"
+screen_off = "untested"
+backlight = "untested"
 touch = "untested"
+buttons = "untested"
+accelerometer = "missing"
+gyroscope = "missing"
+light_sensor = "untested"
+touch_id = "missing"
+storage_read = "untested"
+storage_write = "untested"
 wifi = "untested"
-bluetooth = "untested"
-storage = "untested"
+bluetooth_input = "untested"
+bluetooth_audio = "untested"
+cellular = "missing"
 battery = "untested"
 charging = "untested"
-backlight = "untested"
-buttons = "untested"
-audio = "untested"
-camera = "missing"
-cellular = "missing"
+charging_control = "untested"
 suspend = "missing"
-gpu = "missing"
+resume = "missing"
+usb_serial = "untested"
+usb_network = "untested"
+audio_output = "untested"
+audio_input = "untested"
+camera = "missing"

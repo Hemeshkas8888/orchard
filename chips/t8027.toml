@@ -1,0 +1,15 @@
+# A12X (T8027): facts about the silicon, shared by every board on it.
+schema = 1
+kind = "hardware.chip"
+cpid = 0x8027
+name = "A12X"
+soc = "t8027"
+core = "vortex"
+architecture = "arm64"
+page_size = 16384
+image_format = "im4p"
+reference_version = "18.7.10"
+
+[evidence]
+page_size = "xnu-6153.141.1 osfmk/arm/proc_reg.h"
+reference_version = "Project Cascadia N841 patchfinder targets 18.7.10 / 22H374; other boards on this chip are untested"

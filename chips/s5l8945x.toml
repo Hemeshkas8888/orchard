@@ -1,0 +1,14 @@
+# A5X (S5L8945X): facts about the silicon, shared by every board on it.
+schema = 1
+kind = "hardware.chip"
+cpid = 0x8945
+name = "A5X"
+soc = "s5l8945x"
+architecture = "arm"
+image_format = "img3"
+platform = "apple-armv7"
+stages = ["iBSS", "iBEC"]
+
+[evidence]
+platform = "platform description only; not run"
+stages = "iBSS far smaller than iBEC in the IPSW; not run"

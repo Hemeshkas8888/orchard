@@ -1,0 +1,17 @@
+# iPad Air (Wi-Fi) (J71): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "j71"
+name = "iPad Air (Wi-Fi)"
+apple_products = ["iPad4,1"]
+dt_compatible = ["apple,j71"]
+
+[match.dfu]
+chip = 0x8960
+board = 0x10
+
+[catalog]
+dtb = "s5l8960x-j71" # Exists in OrchardLinux/linux; not enabled here yet.

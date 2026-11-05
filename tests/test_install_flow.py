@@ -60,7 +60,7 @@ class InstallFlow(unittest.TestCase):
         layer.write_bytes(b'platform-layer')
         mixin.write_bytes(b'firmware-bundle')
         adapter = Mock(NAME='Supported tablet', PROFILE='device', INSTALL=True, STATUS='supported',
-                       CAVEATS=[], FEATURES={}, REBOOT_MESSAGE='reboot', DEVICETREE='t8010-j171.dtb')
+                       FEATURES={}, REBOOT_MESSAGE='reboot', DEVICETREE='t8010-j171.dtb')
         adapter.prepare_mixin.return_value = (mixin, {'bytes': 15, 'sha256': 'b' * 64})
         fake = root / 'fake.py'
         fake.write_text(FAKE)

@@ -1,0 +1,13 @@
+# iPad mini (Global) (P107): identity from public sources
+# (tools/catalog/generate). No Orchard bring-up yet; see docs/device-bring-up.md.
+schema = 1
+kind = "hardware.device"
+
+[device]
+profile = "p107"
+name = "iPad mini (Global)"
+apple_products = ["iPad2,7"]
+
+[match.dfu]
+chip = 0x8942
+board = 0x0e

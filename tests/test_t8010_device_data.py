@@ -4,6 +4,8 @@ from pathlib import Path, PurePosixPath
 import re
 import tomllib
 import unittest
+
+from orchard import hardware
 from urllib.parse import urlsplit
 
 HARDWARE = Path(__file__).resolve().parents[1]
@@ -43,7 +45,7 @@ class T8010DeviceData(unittest.TestCase):
                 self.assertEqual(device['match']['dfu'], {'chip': 0x8010, 'board': board})
                 self.assertIs(device['match']['linux']['recovery'], True)
                 self.assertEqual(device['kernel'], {'platform': 'apple-16k', 'dtb': 't8010-' + profile})
-                self.assertIs(device['support']['install'], True)
+                self.assertEqual(hardware.install_blockers(profile), [])
                 self.assertEqual(recipe['device'], product)
 
     def test_ipsw_pinned(self):

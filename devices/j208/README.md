@@ -3,13 +3,13 @@
 Measured bring-up facts, including the hardware identity, are in
 [`docs/bring-up/j208.md`](../../docs/bring-up/j208.md). This file tracks what
 needs testing, open work, and contributed code that is not in the tree yet.
-There is no `device.toml` yet: every descriptor needs a firmware recipe, and
-the J208 recipe isn't written (open work 10).
+Its `device.toml` holds identity only, from public sources: it has no `[kernel]`
+until the firmware recipe is written (open work 10).
 
 ## Needs testing
 
-Nothing J208-specific is in the kernel series yet, and without a descriptor
-Orchard doesn't build for the J208. Once the descriptor exists, a RAM boot of
+Nothing J208-specific is in the kernel series yet, and without `[kernel]` in
+its descriptor Orchard doesn't build for the J208. Once it has one, a RAM boot of
 `examples/hardware-check` with the mainline `t8011-j208` device tree (SoC,
 framebuffer, buttons) would confirm display and buttons.
 
@@ -40,7 +40,7 @@ From the review of #42. Each needs a test on a J208:
    register map looks TCS34xx-like, check against `tcs3472`).
 9. SmartIO: an `apple,t8011-sio` compatible, without the firmware-size gate.
 10. A firmware recipe from iPadOS 17.7.11 (21H461), from the IPSW itself, and
-    then the device descriptor. #42's descriptor is at the tag
+    then the rest of the device descriptor. #42's descriptor is at the tag
     (`devices/j208/device.toml`); its identity values are in the bring-up
     doc. When it comes back: touch, Wi-Fi, battery and backlight are
     `missing` until their drivers are in the tree, and mainline does have
