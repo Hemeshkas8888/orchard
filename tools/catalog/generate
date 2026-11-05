@@ -48,6 +48,8 @@ FEATURE_DRIVERS = ROOT / 'tools/catalog/feature-drivers.toml'
 DRIVERS = ROOT / 'tools/catalog/drivers.json'
 # api.ipsw.me lists some old IPSWs over HTTP; this host serves the same files over HTTPS.
 HTTP_HOST, HTTPS_HOST = 'http://appldnld.apple.com/', 'https://secure-appldnld.apple.com/'
+# What the matrix shows as installable; a test keeps this equal to hardware.IMPLEMENTED_METHODS.
+IMPLEMENTED_METHODS = {'checkm8-pongo'}
 # Boards an open pull request adds; generating them here would conflict with it.
 IN_REVIEW = {'j72': 'PR #59'}
 
@@ -410,8 +412,8 @@ def gpu_milestone(chip):
 def can_install(profile, described):
     """hardware.install_blockers, for a tool that imports none of orchard."""
     methods = tomllib.loads((ROOT / 'methods.toml').read_text())
-    usable = any(methods[name]['implemented_in'] == 'orchard' and not methods[name]['boot_json']
-                 or methods[name]['implemented_in'] == 'orchard'
+    usable = any(name in IMPLEMENTED_METHODS and not methods[name]['boot_json']
+                 or name in IMPLEMENTED_METHODS
                  and name in json.loads((DEVICES / profile / 'boot.json').read_text())['methods']
                  for name in described.get('boot', {}).get('methods', []))
     return ('kernel' in described and usable and 'firmware' in described

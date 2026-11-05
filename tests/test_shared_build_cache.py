@@ -152,7 +152,7 @@ class SharedBuildCacheTests(unittest.TestCase):
     def test_missing_recipe_fails_before_any_checkout_or_producer(self):
         with patch.object(sources, 'checkout', side_effect=AssertionError('checked out source')), \
                 patch.object(build, 'command', side_effect=AssertionError('started producer')), \
-                self.assertRaisesRegex(ValueError, 'Missing hardware recipe input'):
+                self.assertRaisesRegex(ValueError, 'not installed for new-board'):
             build.prepare_components(self.one, self.cache, device='new-board')
         self.assertFalse(self.cache.exists())
 

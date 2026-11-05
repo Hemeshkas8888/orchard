@@ -11,7 +11,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import sys
@@ -39,10 +38,8 @@ def pin(hardware, device):
 
 def layout(hardware, device):
     """(platform, dtb) for a device, from hardware's kernel series."""
-    descriptor = Path(hardware) / 'devices' / device / 'device.toml'
-    if not descriptor.is_file():
-        raise ValueError(f'Missing hardware recipe input: {descriptor}')
-    if not re.search(r'^\[kernel\]', descriptor.read_text(), re.M):
+    from .hardware import device as described
+    if 'kernel' not in described(device, hardware):
         raise ValueError(f'{device} has no kernel yet: its device.toml describes identity only')
     platform, dtb = _series(hardware, '--resolve', device).split()
     if dtb == '-':

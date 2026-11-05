@@ -119,13 +119,14 @@ TOOL_DESTINATIONS = {'dropbear': 'usr/sbin', 'wpa_supplicant': 'usr/sbin', 'iw':
 def boards_by_platform(hardware):
     """{platform: {board: dtb}} for every board the hardware describes."""
     from . import kernel as kernels
+    from .hardware import profiles
     result = {}
-    for descriptor in sorted(Path(hardware, 'devices').glob('*/device.toml')):
+    for board in profiles(hardware):
         try:
-            platform, dtb = kernels.layout(hardware, descriptor.parent.name)
+            platform, dtb = kernels.layout(hardware, board)
         except ValueError:
             continue
-        result.setdefault(platform, {})[descriptor.parent.name] = dtb
+        result.setdefault(platform, {})[board] = dtb
     return result
 
 

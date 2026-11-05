@@ -118,20 +118,6 @@ def core_files():
     return files
 
 
-def _device_files(hardware, boards):
-    files = {'features.toml': hardware / 'features.toml', 'methods.toml': hardware / 'methods.toml'}
-    for board in boards:
-        directory = hardware / 'devices' / board
-        if not (directory / 'device.toml').is_file():
-            raise ValueError(f'orchard describes no device {board}')
-        for path in sorted(directory.rglob('*')):
-            if path.is_symlink():
-                raise ValueError(f'Device data must not contain links: {path}')
-            if path.is_file() and '__pycache__' not in path.parts:
-                files['devices/' + path.relative_to(hardware / 'devices').as_posix()] = path
-    return files
-
-
 def _revision():
     from .hardware import revision
     try:
@@ -148,10 +134,10 @@ def build(output, *, loaders, boards=None, release=None, hardware=None):
     index.toml (and the release.toml it pins, if a local file) it carries.
     """
     from importlib.metadata import version
-    from .hardware import ROOT, profiles
+    from .hardware import ROOT, data_files, profiles
     hardware = Path(hardware or ROOT)
     boards = sorted(boards) if boards is not None else profiles()
-    members = {**core_files(), **_device_files(hardware, boards)}
+    members = {**core_files(), **data_files(boards, hardware)}
     for name in ('pongo', 'm1n1'):
         path = Path(loaders[name])
         if path.is_symlink() or not path.is_file():

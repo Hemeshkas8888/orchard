@@ -22,7 +22,6 @@ from pathlib import Path
 import stat
 import tarfile
 import tempfile
-import tomllib
 
 from ..hardware import ROOT
 from .integrity import sha
@@ -129,9 +128,10 @@ def suspend_boards(board_dtbs, hardware):
     orchard-sleep (system/defaults) allows suspend at boot only on these;
     see docs/bring-up/suspend.md.
     """
+    from ..hardware import device
     names = set()
     for board in board_dtbs:
-        descriptor = tomllib.loads((Path(hardware) / 'devices' / board / 'device.toml').read_text())
+        descriptor = device(board, hardware)
         if descriptor.get('features', {}).get('suspend') == 'working':
             names.update(descriptor['device']['dt_compatible'])
     return ''.join(name + '\n' for name in sorted(names)).encode()
