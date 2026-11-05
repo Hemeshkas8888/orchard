@@ -98,7 +98,7 @@ class Zipapp(Store):
         cores = list((self.home / 'store/core').iterdir())
         self.assertEqual([path.name for path in cores], [f'{receipt["version"]}-{receipt["sha256"][:12]}'])
         self.assertEqual((cores[0] / 'loaders/m1n1.bin').read_bytes(), b'm1n1')
-        self.assertTrue((cores[0] / 'devices/j71b/device.toml').is_file())
+        self.assertFalse((cores[0] / 'devices').exists())  # device data comes from the catalog
         self.assertFalse((cores[0] / 'src/orchard/build.py').exists())
         self.assertEqual(json.loads((self.home / 'store/state.json').read_text()), {'version': STATE_VERSION})
         # Every module imports without site-packages (no jsonschema); install_device runs on the recovery.
@@ -132,7 +132,7 @@ class Zipapp(Store):
             names = archive.namelist()
             self.assertEqual(archive.read('release/index.toml'), (release / 'index.toml').read_bytes())
         self.assertIn('release/release.toml', names)
-        self.assertIn('devices/j71b/device.toml', names)
+        self.assertFalse([name for name in names if name.startswith('devices/')])
         from orchard.user import bundled_release
         core = self.home / 'core'
         (core / 'release').mkdir(parents=True)

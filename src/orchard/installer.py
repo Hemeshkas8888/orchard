@@ -134,10 +134,10 @@ def build(output, *, loaders, boards=None, release=None, hardware=None):
     index.toml (and the release.toml it pins, if a local file) it carries.
     """
     from importlib.metadata import version
-    from .hardware import ROOT, data_files, profiles
+    from .hardware import ROOT, profiles
     hardware = Path(hardware or ROOT)
-    boards = sorted(boards) if boards is not None else profiles()
-    members = {**core_files(), **data_files(boards, hardware)}
+    boards = sorted(boards) if boards is not None else profiles(hardware)
+    members = core_files()
     for name in ('pongo', 'm1n1'):
         path = Path(loaders[name])
         if path.is_symlink() or not path.is_file():

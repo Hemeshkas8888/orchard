@@ -147,7 +147,7 @@ def platform_for(manifest, board):
     matches = [name for name, row in manifest['platforms'].items() if board in row['boards']]
     if len(matches) != 1:
         covered = ', '.join(sorted(b for row in manifest['platforms'].values() for b in row['boards']))
-        raise ManifestError(f'This release does not cover {board}' + (f' (it covers {covered})' if covered else '')
+        raise ManifestError(f'This release does not cover {board} yet; a newer release or nightly may' + (f' (it covers {covered})' if covered else '')
                             if not matches else f'{board} is listed under several platforms')
     return matches[0]
 

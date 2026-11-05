@@ -11,6 +11,14 @@ import sys
 STATE_VERSION = 1
 
 
+def shared_cache_root() -> Path:
+    """The Orchard cache: components, tooling and the device catalog, across checkouts."""
+    override = os.environ.get('ORCHARD_CACHE_DIR')
+    if override:
+        return Path(override).expanduser().resolve()
+    return (Path(os.environ.get('XDG_CACHE_HOME', Path.home() / '.cache')) / 'orchard').resolve()
+
+
 def cache_root() -> Path:
     override = os.environ.get('ORCHARD_HOME')
     if override:

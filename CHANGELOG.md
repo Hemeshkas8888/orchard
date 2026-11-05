@@ -19,6 +19,8 @@ entry. The iPad 6 gets speakers and an accelerometer for screen rotation.
 
 ### Devices
 
+- Device data updates: published versions of Orchard now download device data, so
+  a new board or a corrected feature state no longer needs a CLI update.
 - Device catalog: every A5–A13 iPad and iPhone board is now described from public
   sources, with its boot files and a generated compatibility matrix in
   `docs/compatibility.md`. Orchard doesn't build for the new boards yet.
