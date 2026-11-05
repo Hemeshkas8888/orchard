@@ -1,31 +1,27 @@
 # Boot methods a board can list in device.toml [boot] methods. A method says
 # what it needs; a board's boot.json says which Apple files it uses them with.
-# implemented_in: where the code lives today (none: an owner-private manual path).
-# Names may still change.
+# The code says which of these it implements (hardware.IMPLEMENTED_METHODS), so data
+# can name a method newer than a CLI. Names may still change.
 ["checkm8-pongo"]
 description = "checkm8 from DFU, PongoOS, then m1n1"
 boot_json = false
 stages = []
 loader = "m1n1"
-implemented_in = "orchard"
 
 ["jailbreak-kdfu"]
 description = "kDFU from a jailbroken iOS, then Cascadia's staging loader"
 boot_json = false
 stages = []
 loader = "cascadia"
-implemented_in = "none"
 
 ["recovery-autogo"]
 description = "Patched iBSS and iBEC with an autogo hook, then an ARM32 staging bundle"
 boot_json = true
 stages = ["iBSS", "iBEC"]
 loader = "arm32-staging"
-implemented_in = "launcher"
 
 ["custom-dfu-recovery"]
 description = "A patched iBSS, optionally iBEC, entered through an external custom DFU, then m1n1"
 boot_json = true
 stages = ["iBSS"]
 loader = "m1n1"
-implemented_in = "launcher"

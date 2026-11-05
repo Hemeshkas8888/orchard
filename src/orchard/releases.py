@@ -9,7 +9,7 @@ import tempfile
 import tomllib
 
 from . import version
-from .hardware import device as hardware_device
+from .hardware import IMPLEMENTED_METHODS, device as hardware_device
 from .cache import cache_root
 from .downloads import download
 from .http import open_url
@@ -164,8 +164,8 @@ def select_manifest(source, profile, progress=None, clock=None, purpose='install
         raise ValueError('Manifest is not compatible with this device')
     if document['boot_method'] not in described.get('boot', {}).get('methods', []):
         raise ValueError(f'{profile} does not boot with {document["boot_method"]}')
-    if document['boot_method'] != 'checkm8-pongo':
-        raise ValueError('This Orchard build implements only checkm8-pongo')
+    if document['boot_method'] not in IMPLEMENTED_METHODS:
+        raise ValueError('This Orchard build implements only ' + ', '.join(sorted(IMPLEMENTED_METHODS)))
     if document['protocol'] != 1:
         raise ValueError('Unsupported device protocol; this manifest is for another Orchard version')
     actual = tuple(int(part) for part in version().split('.'))

@@ -3,6 +3,7 @@ import importlib.machinery
 import importlib.util
 import json
 from pathlib import Path
+import re
 import struct
 import tempfile
 import tomllib
@@ -14,6 +15,8 @@ DESCRIPTORS = sorted(ROOT.glob('devices/*/device.toml'))
 CHIPS = {chip['cpid']: chip for chip in (tomllib.loads(path.read_text()) for path in (ROOT / 'chips').glob('*.toml'))}
 METHODS = tomllib.loads((ROOT / 'methods.toml').read_text())
 # Every iPhone and iPad on palera1n's device list (https://palera.in).
+# Not device data: USB sysfs paths, CLI subcommands and per-unit private state.
+ALLOWED_MENTION = re.compile(r"sys/bus/usb/devices|add_parser\('devices'|action == 'devices'|private/devices|description")
 PALERA1N = '''n71 n71m n66 n66m n69 n69u d10 d101 d11 d111 d20 d201 d21 d211 d22 d221
               j96 j97 j71s j71t j72s j72t j71b j72b j171 j172 j127 j128 j98a j99a
               j207 j208 j120 j121 j81 j82'''
@@ -99,6 +102,19 @@ class Catalog(unittest.TestCase):
 
     def test_the_matrix_is_current(self):
         self.assertEqual(tool().matrix(True), [])
+
+
+class Boundary(unittest.TestCase):
+    def test_only_hardware_py_opens_device_data(self):
+        direct = re.compile(r"""['"/](devices|methods\.toml|features\.toml)['"/]""")
+        offenders = []
+        for path in sorted((ROOT / 'src/orchard').rglob('*.py')):
+            if path.name == 'hardware.py':
+                continue
+            for number, line in enumerate(path.read_text().splitlines(), 1):
+                if direct.search(line) and not ALLOWED_MENTION.search(line):
+                    offenders.append(f'{path.relative_to(ROOT)}:{number}: {line.strip()}')
+        self.assertEqual(offenders, [])
 
 
 class Urls(unittest.TestCase):
@@ -222,6 +238,16 @@ class InferredInstall(unittest.TestCase):
         from orchard import hardware
         boards = {path.parent.name for path in DESCRIPTORS if not hardware.install_blockers(path.parent.name)}
         self.assertEqual(boards, {'d10', 'd101', 'd11', 'd111', 'd221', 'j171', 'j172', 'j71b', 'j71t', 'j72b', 'j72t'})
+
+    def test_data_can_name_a_method_this_code_does_not_implement(self):
+        from orchard import hardware
+        described = hardware.device('j71b')
+        described = {**described, 'boot': {'methods': ['from-the-future']}}
+        self.assertIn('this Orchard has no boot method for it yet', hardware.install_blockers('j71b', described))
+
+    def test_the_tool_knows_what_the_cli_implements(self):
+        from orchard import hardware
+        self.assertEqual(tool().IMPLEMENTED_METHODS, hardware.IMPLEMENTED_METHODS)
 
     def test_the_matrix_agrees_with_the_cli(self):
         from orchard import hardware

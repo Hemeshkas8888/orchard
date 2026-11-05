@@ -3,7 +3,6 @@ import hashlib
 import io
 import json
 from pathlib import Path
-import re
 import shutil
 import tarfile
 
@@ -65,25 +64,8 @@ def recipe_for(profile, hardware=None):
     From the installed hardware package, or from the hardware checkout at
     HARDWARE (a development build against another branch).
     """
-    if hardware is None:
-        from .hardware import firmware_path
-        return recipes.check(json.loads(firmware_path(profile).read_text()))
-    import tomllib
-    if not re.fullmatch(r'[a-z0-9][a-z0-9_-]*', profile):
-        raise ValueError('Invalid device profile')
-    descriptor = Path(hardware) / 'devices' / profile / 'device.toml'
-    with descriptor.open('rb') as stream:
-        described = tomllib.load(stream)
-    if 'firmware' not in described:
-        raise ValueError(f'{profile} has no firmware recipe yet')
-    name = described['firmware']['recipe']
-    parts = name.split('/')
-    if '\\' in name or ':' in name or any(part in ('', '.', '..') for part in parts):
-        raise ValueError('Unsafe firmware recipe resource')
-    path = descriptor.parent.joinpath(*parts)
-    if any(p.is_symlink() for p in (path, *path.parents) if descriptor.parent in (p, *p.parents)):
-        raise ValueError('Firmware recipe path contains a symlink')
-    return recipes.check(json.loads(path.read_text()))
+    from .hardware import firmware_path
+    return recipes.check(json.loads(firmware_path(profile, hardware).read_text()))
 
 
 def ensure(profile, clock, progress, *, allow_download=True, hardware=None):

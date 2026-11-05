@@ -1,4 +1,8 @@
-"""The hardware data of this checkout: device descriptors, features, firmware recipes, loaders."""
+"""The one way to read device data: descriptors, features, boot methods, firmware recipes, loaders.
+
+Nothing else opens devices/, methods.toml or features.toml. ROOT says where they
+are; `root` selects another checkout's data, for a build against another branch.
+"""
 import json
 from pathlib import Path
 import re
@@ -7,21 +11,23 @@ import tomllib
 
 # The repository root: devices/, kernel/, boot/ and schemas/ sit beside src/.
 ROOT = Path(__file__).resolve().parents[2]
+# What this version of the code can do; data can name methods newer than this code.
+IMPLEMENTED_METHODS = frozenset({'checkm8-pongo'})
 
 
-def device_path(profile):
+def device_path(profile, root=None):
     if not isinstance(profile, str) or not re.fullmatch(r'[a-z0-9][a-z0-9._-]*', profile):
         raise ValueError('Invalid hardware profile')
-    path = ROOT / 'devices' / profile / 'device.toml'
+    path = Path(root or ROOT) / 'devices' / profile / 'device.toml'
     if not path.is_file() or path.is_symlink():
         raise ValueError('Hardware support is not installed for ' + profile)
     return path
 
 
-def profiles():
+def profiles(root=None):
     """Every device this hardware data describes."""
-    root = ROOT / 'devices'
-    return sorted(path.parent.name for path in root.glob('*/device.toml')
+    devices = Path(root or ROOT) / 'devices'
+    return sorted(path.parent.name for path in devices.glob('*/device.toml')
                   if not path.is_symlink() and not path.parent.is_symlink())
 
 
@@ -35,8 +41,8 @@ def methods():
     return tomllib.loads((ROOT / 'methods.toml').read_text())
 
 
-def device(profile):
-    return tomllib.loads(device_path(profile).read_text())
+def device(profile, root=None):
+    return tomllib.loads(device_path(profile, root).read_text())
 
 
 def install_blockers(profile, described=None):
@@ -59,18 +65,17 @@ def install_blockers(profile, described=None):
 
 
 def _method_usable(profile, name):
-    method = methods().get(name, {})
-    if method.get('implemented_in') != 'orchard':
+    if name not in IMPLEMENTED_METHODS:
         return False
-    if not method['boot_json']:
+    if not methods()[name]['boot_json']:
         return True
     recipe = device_path(profile).parent / 'boot.json'
     return recipe.is_file() and name in json.loads(recipe.read_text())['methods']
 
 
-def firmware_path(profile):
-    descriptor = device_path(profile)
-    described = device(profile)
+def firmware_path(profile, root=None):
+    descriptor = device_path(profile, root)
+    described = device(profile, root)
     if 'firmware' not in described:
         raise ValueError(f'{profile} has no firmware recipe yet')
     name = described['firmware']['recipe']
@@ -84,6 +89,22 @@ def firmware_path(profile):
     if not path.is_file():
         raise ValueError('Firmware recipe resource is missing')
     return path
+
+
+def data_files(boards, root=None):
+    """{path in a package: file} of the shared data and these boards' directories."""
+    root = Path(root or ROOT)
+    files = {'features.toml': root / 'features.toml', 'methods.toml': root / 'methods.toml'}
+    for board in boards:
+        directory = root / 'devices' / board
+        if not (directory / 'device.toml').is_file():
+            raise ValueError(f'orchard describes no device {board}')
+        for path in sorted(directory.rglob('*')):
+            if path.is_symlink():
+                raise ValueError(f'Device data must not contain links: {path}')
+            if path.is_file() and '__pycache__' not in path.parts:
+                files['devices/' + path.relative_to(root / 'devices').as_posix()] = path
+    return files
 
 
 def loader(profile):
