@@ -199,16 +199,6 @@ class UserOrchard(Store):
         self.assertTrue(installer.adopt(rebuilt, '/py', output=lambda _: None))
         self.assertIn(str(rebuilt / 'src'), (self.home / '.local/bin/orchard').read_text())
 
-    def test_palera1n_in_local_bin_counts_off_path(self):
-        from orchard import host_setup
-        binary = self.home / '.local/bin/palera1n'
-        binary.parent.mkdir(parents=True, exist_ok=True)
-        binary.write_text('#!/bin/sh\n')
-        binary.chmod(0o755)
-        with mock.patch.dict(os.environ, {'PATH': '/usr/bin:/bin'}), \
-                mock.patch.object(Path, 'home', return_value=self.home):
-            self.assertEqual(host_setup.palera1n(), str(binary))
-
     def test_a_development_orchard_on_path_stays(self):
         launcher = self.home / '.local/bin/orchard'
         launcher.parent.mkdir(parents=True)

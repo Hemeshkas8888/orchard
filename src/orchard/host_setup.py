@@ -1,7 +1,5 @@
 """User-local boot tools and Linux USB access. No device operations."""
 import grp
-import io
-import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,49 +11,11 @@ import sys
 import tempfile
 from typing import Callable, Optional
 
-from .http import open_url
+from . import tools
 from .progress import Progress
-from .releases import materialize
 from .transports.pongo import GLU, library_path
 
-PALERA_RELEASE = 'v2.4'
 USB_RULES = Path('/etc/udev/rules.d/70-orchard.rules')
-
-
-def asset(repo, tag, name, progress):
-    with open_url(f'https://api.github.com/repos/{repo}/releases/tags/{tag}') as response:
-        data = response.read(1024 * 1024 + 1)
-    if len(data) > 1024 * 1024:
-        raise ValueError('GitHub release metadata exceeds size limit')
-    matches = [row for row in json.loads(data)['assets'] if row['name'] == name]
-    if len(matches) != 1:
-        raise ValueError(f'Missing GitHub asset: {repo}/{tag}/{name}')
-    row = matches[0]
-    digest = row.get('digest') or ''
-    if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
-        raise ValueError('GitHub asset has no SHA-256 digest: ' + name)
-    if not 0 < row['size'] <= 512 * 1024 * 1024:
-        raise ValueError('GitHub asset size outside limit')
-    if not row['browser_download_url'].startswith(f'https://github.com/{repo}/releases/download/{tag}/'):
-        raise ValueError('Unexpected GitHub asset URL')
-    return materialize({'url': row['browser_download_url'], 'bytes': row['size'],
-                        'sha256': digest[7:]}, None, progress, label=name.split('_')[0].split('-')[0])
-
-
-def install_tool(source, destination):
-    if destination.exists() or destination.is_symlink():
-        raise ValueError('Refusing to overwrite existing tool: ' + str(destination))
-    with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as output:
-        temporary = Path(output.name)
-        try:
-            with source.open('rb') as stream:
-                shutil.copyfileobj(stream, output)
-            output.flush()
-            temporary.chmod(0o755)
-            # link() publishes atomically and refuses a destination that appeared meanwhile.
-            os.link(temporary, destination)
-        finally:
-            temporary.unlink(missing_ok=True)
 
 
 def usb_rules(group):
@@ -138,28 +98,13 @@ def _install(tool):
     return (lambda: subprocess.run([*argv, package], check=True)), f'install with {name}: {package}'
 
 
-def palera1n():
-    """The palera1n to run: on PATH, or the one ./setup and the installer put in ~/.local/bin.
-
-    That shared location counts even when ~/.local/bin is not on PATH.
-    """
-    installed = Path.home() / '.local/bin/palera1n'
-    if installed.is_file() and os.access(installed, os.X_OK):
-        return shutil.which('palera1n') or str(installed)
-    return shutil.which('palera1n')
-
-
-def _palera1n_step(system, arch):
-    existing = palera1n()
+def _palera1n_step():
+    existing = tools.find('palera1n')
     if existing:
         return Step('palera1n', BOOT, True, existing)
-    def apply():
-        binary = Path.home() / '.local/bin'
-        binary.mkdir(parents=True, exist_ok=True)
-        filename = 'palera1n-macos-universal' if system == 'Darwin' else 'palera1n-linux-' + arch
-        # A host tool, not part of what the user installs: no progress row for it.
-        install_tool(asset('palera1n/palera1n', PALERA_RELEASE, filename, Progress(io.StringIO())), binary / 'palera1n')
-    return Step('palera1n', BOOT, False, f'download palera1n {PALERA_RELEASE} into ~/.local/bin', apply)
+    version = tools.TOOLS['palera1n']['version']
+    return Step('palera1n', BOOT, False, f'download palera1n {version} into the Orchard cache',
+                lambda: tools.ensure_tool('palera1n'))
 
 
 def _libusb_step():
@@ -247,7 +192,7 @@ def steps(needed_for=(BOOT, BUILD)):
     system, arch = host()
     result = [Step('OpenSSH', BOOT, all(shutil.which(c) for c in ('ssh', 'ssh-keygen')),
                    'found' if all(shutil.which(c) for c in ('ssh', 'ssh-keygen')) else 'install OpenSSH, then rerun'),
-              _libusb_step(), _palera1n_step(system, arch)]
+              _libusb_step(), _palera1n_step()]
     if system == 'Linux':
         result.append(_usb_rules_step())
     if BUILD in needed_for:
@@ -315,14 +260,14 @@ def setup(progress=None):
         raise ValueError('libusb-1.0 is unavailable: ' + libusb.detail)
     if platform.system() == 'Linux' and (not shutil.which('udevadm') or not shutil.which('sudo')):
         raise ValueError('Linux host setup requires udevadm and sudo')
-    tools = {}
-    palera = _palera1n_step(*host())
+    found = {}
+    palera = _palera1n_step()
     if not palera.ready:
         palera.apply()
-    tools['palera1n'] = _palera1n_step(*host()).detail
+    found['palera1n'] = _palera1n_step().detail
     if platform.system() == 'Linux':
         rules = _usb_rules_step()
         if not rules.ready:
             progress.phase('Installing Linux USB permissions (sudo); reconnect the device afterward')
             rules.apply()
-    return {'tools': tools, 'device_modified': False}
+    return {'tools': found, 'device_modified': False}

@@ -8,7 +8,6 @@ import shutil
 import subprocess
 import sys
 
-from .host_setup import palera1n
 from .ram import verify_ram
 
 
@@ -27,11 +26,11 @@ def confirm_boot(*, mismatch=False):
 def boot_ram(output, *, yes=False, logs=None):
     """Boot once via existing USB/Pongo transport. No recovery API required.
 
-    LOGS: where palera1n's log goes (default: OUTPUT), e.g. the project's
+    LOGS: where the entry tool's log goes (default: OUTPUT), e.g. the project's
     out/PLATFORM when OUTPUT is a temporary image.
     """
     from .hardware import device as hardware_device
-    from .apple import usb
+    from .apple import entries, usb
     from .apple.boot import start_pongo
     from .state import operation_lock
     from .transports import pongo
@@ -56,8 +55,6 @@ def boot_ram(output, *, yes=False, logs=None):
         ecid = device.get('ecid')
         if not ecid:
             raise ValueError('Missing device ECID')
-        if device['mode'] == 'dfu' and not palera1n():
-            raise ValueError('Install palera1n before booting')
         name = description['device']['name'] if not mismatch else device.get('product') or 'Unrecognized device'
         print(f'{name}, ECID {ecid:x}, USB {device["location"]}, mode {device["mode"]}.')
         print("Experimental RAM boot; the payload's /init determines what runs.")
@@ -77,9 +74,10 @@ def boot_ram(output, *, yes=False, logs=None):
         verify_ram(output)
         usb.selected(device['location'], ecid, chip=chip, board=board, mode=device['mode'])
         if device['mode'] == 'dfu':
-            with (Path(logs or output) / 'palera1n.log').open('wb') as log:
+            entry = entries.select(description if not mismatch else None)
+            with (Path(logs or output) / f'{entry}.log').open('wb') as log:
                 start_pongo(device, output / 'pongo.bin', log, print,
-                            chip=chip, board=board, product='', seconds=60)
+                            chip=chip, board=board, product='', seconds=60, entry=entry)
         usb.selected(device['location'], ecid, chip=chip, board=board)
         pongo.upload(output / 'linux.bin', device['location'], receipt['files']['linux.bin'])
     print('Upload/boot request sent; Linux readiness has NOT been verified.')

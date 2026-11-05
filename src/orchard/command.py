@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 
 from importlib.metadata import version
+from orchard.apple.entries import ENTRIES
 from orchard.devices import load, choose
 from orchard.progress import Progress
 from orchard.releases import resolve, catalogue, register
@@ -99,7 +100,12 @@ def main():
     mixin = commands.add_parser('mixin', help='prepare a data-only private mixin')
     for name in ('firmware-dir', 'output'):
         mixin.add_argument('--' + name, type=Path, required=True)
+    for command in (run, guided, launcher, boot):
+        command.add_argument('--via', choices=sorted(ENTRIES), help='how to enter the device from DFU '
+                             "(default: the board's preference, else palera1n)")
     args = parser.parse_args()
+    if getattr(args, 'via', None):
+        os.environ['ORCHARD_VIA'] = args.via
     progress = Progress(verbose=args.verbose)
     try:
         from orchard.cache import check_state

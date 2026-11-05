@@ -7,6 +7,7 @@ Development uses orchard's full command (orchard.command) instead.
 """
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -46,7 +47,13 @@ def main(argv=None, *, core=None, origin=None):
     commands.add_parser('update', help="install the latest orchard release's core if it is newer")
     commands.add_parser('version', help="show this orchard's version")
     commands.add_parser('adopt', help=argparse.SUPPRESS)  # make this core the user's orchard
+    from .apple.entries import ENTRIES
+    for command in (install, launch):
+        command.add_argument('--via', choices=sorted(ENTRIES), help='how to enter the device from DFU '
+                             "(default: the board's preference, else palera1n)")
     args = parser.parse_args(argv)
+    if getattr(args, 'via', None):
+        os.environ['ORCHARD_VIA'] = args.via
     progress = Progress(verbose=args.verbose)
     try:
         check_state()

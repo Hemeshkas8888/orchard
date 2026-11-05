@@ -19,6 +19,9 @@ entry. The iPad 6 gets speakers and an accelerometer for screen rotation.
 
 ### Devices
 
+- Boot entries: `--via checkra1n` boots through standalone checkra1n instead of
+  palera1n, and Orchard now fetches and verifies these tools when needed. A palera1n
+  of another version is no longer used unless you ask for it.
 - Device data updates: published versions of Orchard now download device data, so
   a new board or a corrected feature state no longer needs a CLI update.
 - Device catalog: every A5–A13 iPad and iPhone board is now described from public

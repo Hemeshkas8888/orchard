@@ -293,6 +293,27 @@ can name a method a CLI doesn't have, and that CLI says it has no boot method fo
 A distro release pins the platform layer it was tested with, so a board that needs
 a newer kernel arrives with the next distro release or nightly.
 
+## Boot methods and entries
+
+A **method** (`methods.toml`, `[boot] methods`) is the chain that runs once a device
+is entered: `checkm8-pongo` is Pongo, then m1n1, then Linux. An **entry** is how the
+device gets there: `palera1n` and `checkra1n` both reach `checkm8-pongo`, and an iBSS
+chain would have its own. `methods.toml` says which entries reach which method, and
+`apple/entries.py` says how to run each one, because device data updates on its own
+and must not choose what gets executed.
+
+A board can name preferred entries in `[boot] entries`; `--via NAME` (or `ORCHARD_VIA`)
+overrides that on `run`, `install`, `launch` and `boot`. The default is palera1n. It
+isn't known yet what makes an entry work on a board (the chip, the host, the arguments
+or the tool's own patches), so nothing refuses an entry by chip or host, and a failed
+attempt isn't retried with another one.
+
+`tools.ensure_tool` fetches an entry's tool on first use into `tools/` in the Orchard
+cache, pinned by SHA-256 per host. A binary elsewhere counts only if it matches the
+pin, so an unexpected version never boots a device silently; `ORCHARD_PALERA1N` or
+`ORCHARD_CHECKRA1N` selects another binary on purpose. palera1n v2.4 embeds checkra1n
+0.1337.3, patched on Linux; the `checkra1n` entry runs the unpatched official build.
+
 ## Nightlies
 
 **Done (CI):** a scheduled run (03:17 UTC) builds every published component

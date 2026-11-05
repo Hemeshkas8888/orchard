@@ -1,7 +1,4 @@
 """Host setup never invokes device operations or replaces existing boot tools."""
-import hashlib
-import io
-import json
 import os
 from pathlib import Path
 import tempfile
@@ -16,8 +13,11 @@ class HostSetup(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        self.palera = self.root / 'palera'
-        self.palera.write_bytes(b'palera fixture')
+        self.found = None
+
+    def fetch(self, name):
+        self.found = f'/cache/{name}'
+        return self.found
 
     def which(self, name):
         local = self.root / '.local/bin' / name
@@ -37,7 +37,8 @@ class HostSetup(unittest.TestCase):
              patch.object(host_setup, 'library_path'), \
              patch.object(host_setup, 'USB_RULES', rule), \
              patch.object(host_setup.shutil, 'which', side_effect=self.which), \
-             patch.object(host_setup, 'asset', side_effect=[self.palera]) as download, \
+             patch.object(host_setup.tools, 'find', side_effect=lambda name: self.found), \
+             patch.object(host_setup.tools, 'ensure_tool', side_effect=self.fetch) as download, \
              patch.object(host_setup.subprocess, 'run', side_effect=run) as commands:
             first = host_setup.setup(Mock())
             second = host_setup.setup(Mock())
@@ -46,7 +47,7 @@ class HostSetup(unittest.TestCase):
         self.assertEqual(download.call_count, 1)
         self.assertEqual(commands.call_count, 2)  # install rules, reload; never palera/device commands.
         self.assertEqual(rule.read_text().count('MODE="0660"'), 4)
-        self.assertEqual((self.root / '.local/bin/palera1n').read_bytes(), b'palera fixture')
+        self.assertEqual(first['tools']['palera1n'], '/cache/palera1n')
 
     def test_macos_keeps_existing_tools_and_never_uses_sudo(self):
         with patch.object(host_setup.platform, 'system', return_value='Darwin'), \
@@ -55,36 +56,13 @@ class HostSetup(unittest.TestCase):
              patch.object(host_setup.Path, 'home', return_value=self.root), \
              patch.object(host_setup, 'library_path'), \
              patch.object(host_setup.shutil, 'which', side_effect=lambda name: '/existing/' + name), \
-             patch.object(host_setup, 'asset') as download, \
+             patch.object(host_setup.tools, 'find', return_value='/existing/palera1n'), \
+             patch.object(host_setup.tools, 'ensure_tool') as download, \
              patch.object(host_setup.subprocess, 'run') as commands:
             result = host_setup.setup(Mock())
         download.assert_not_called()
         commands.assert_not_called()
         self.assertEqual(result['tools']['palera1n'], '/existing/palera1n')
-
-    def test_tool_publication_refuses_existing_destination(self):
-        target = self.root / 'existing'
-        target.write_bytes(b'keep')
-        with self.assertRaises(ValueError):
-            host_setup.install_tool(self.palera, target)
-        self.assertEqual(target.read_bytes(), b'keep')
-
-    def test_release_asset_requires_digest(self):
-        row = {'name': 'binary', 'digest': None}
-        with patch.object(host_setup, 'open_url', return_value=io.BytesIO(json.dumps({'assets': [row]}).encode())), \
-             patch.object(host_setup, 'materialize') as download:
-            with self.assertRaises(ValueError):
-                host_setup.asset('org/repo', 'v1', 'binary', Mock())
-        download.assert_not_called()
-
-    def test_release_asset_uses_verified_artifact_cache(self):
-        row = {'name': 'binary', 'digest': 'sha256:' + hashlib.sha256(b'bytes').hexdigest(),
-               'size': 5, 'browser_download_url': 'https://github.com/org/repo/releases/download/v1/binary'}
-        with patch.object(host_setup, 'open_url', return_value=io.BytesIO(json.dumps({'assets': [row]}).encode())), \
-             patch.object(host_setup, 'materialize', return_value=self.palera) as download:
-            self.assertEqual(host_setup.asset('org/repo', 'v1', 'binary', Mock()), self.palera)
-        self.assertEqual(download.call_args.args[0]['sha256'], row['digest'][7:])
-
 
 
 class Requirements(unittest.TestCase):
@@ -116,14 +94,16 @@ class Requirements(unittest.TestCase):
                        patch.object(host_setup.subprocess, 'run', side_effect=run),
                        patch.dict(os.environ, {'PATH': str(self.root / '.local/bin'), 'ORCHARD_CACHE_DIR': str(self.root / 'cache')}),
                        patch.object(host_setup, 'GLU', str(self.root / 'no-glu')),
-                       patch.object(host_setup, 'asset', return_value=self.palera())):
+                       patch.object(host_setup.tools, 'find', side_effect=lambda name: self.found),
+                       patch.object(host_setup.tools, 'ensure_tool', side_effect=self.fetch)):
             target.start()
             self.addCleanup(target.stop)
 
-    def palera(self):
-        path = self.root / 'palera-download'
-        path.write_bytes(b'palera')
-        return path
+    found = None
+
+    def fetch(self, name):
+        self.found = f'/cache/{name}'
+        return self.found
 
     def test_glu_comes_before_homebrew_and_neither_is_installed_for_you(self):
         self.assertEqual(host_setup.package_manager(), ('glu', ['/bin/glu', 'install', '--yes']))
@@ -158,7 +138,7 @@ class Requirements(unittest.TestCase):
         launcher = self.root / '.local/bin/orchard'
         self.assertFalse(launcher.is_symlink())
         self.assertEqual(launcher.read_bytes(), (ROOT / 'tools/launcher').read_bytes())
-        self.assertEqual((self.root / '.local/bin/palera1n').read_bytes(), b'palera')
+        self.assertEqual(self.found, '/cache/palera1n')
         ran = len(self.ran)
         questions.clear()
         self.assertEqual(host_setup.setup_interactive(output=shown.append, ask=questions.append, interactive=True), 0)
@@ -192,7 +172,7 @@ class Requirements(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'libusb-1.0 is unavailable: install with glu: libusb'):
                 host_setup.setup(Mock())
         result = host_setup.setup(Mock())
-        self.assertEqual(result['tools']['palera1n'], str(self.root / '.local/bin/palera1n'))
+        self.assertEqual(result['tools']['palera1n'], '/cache/palera1n')
         self.assertFalse([argv for argv in self.ran if '/bin/glu' in argv])
 
 
