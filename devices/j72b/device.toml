@@ -30,28 +30,33 @@ dtb = "t8010-j72b"     # arch/arm64/boot/dts/apple/<dtb>.dtb
 recipe = "firmware.json" # Relative to this device.toml; public recipe, not firmware bytes.
 
 [support]
-install = true
 status = "experimental"
-caveats = [
-  "Bluetooth needs its module vendor (Murata or USI) chosen per unit; not loaded yet.",
-]
-wifi = false # Wi-Fi DT node and pinned figarob firmware exist, but no hardware validation yet.
-usb_serial = false # No Orchard launcher/gadget validated on this board yet.
-usb_network = false
 
-# States: working, partial, untested, missing, none (features.toml).
+# States: working, untested, missing, none (features.toml).
 [features]
 display = "untested"
+screen_off = "untested"
+backlight = "untested"
 touch = "untested"
+buttons = "untested"
+accelerometer = "missing"
+gyroscope = "missing"
+light_sensor = "missing"
+touch_id = "missing"
+storage_read = "untested"
+storage_write = "untested"
 wifi = "untested"
-bluetooth = "missing"
-storage = "untested"
+bluetooth_input = "missing"
+bluetooth_audio = "missing"
+cellular = "missing"
 battery = "untested"
 charging = "untested"
-backlight = "untested"
-buttons = "untested"
-audio = "missing"
-camera = "missing"
-cellular = "missing"
+charging_control = "untested"
 suspend = "untested"
+resume = "untested"
+usb_serial = "untested"
+usb_network = "untested"
+audio_output = "missing"
+audio_input = "missing"
+camera = "missing"
 gpu = "missing"

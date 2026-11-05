@@ -26,28 +26,33 @@ dtb = "t8010-j71b"     # arch/arm64/boot/dts/apple/<dtb>.dtb
 recipe = "firmware.json" # Relative to this device.toml; public recipe, not firmware bytes.
 
 [support]
-install = true
 status = "supported"
-caveats = [
-  "Apple chargers and USB-C sources charge at up to 2.4 A; computers, hubs and other USB-A chargers at 500 mA, which may not keep up with heavy use.",
-]
-wifi = true # Static support; provisioning requires runtime-confirmed availability.
-usb_serial = true
-usb_network = true
 
-# States: working, partial, untested, missing, none (features.toml).
+# States: working, untested, missing, none (features.toml).
 [features]
 display = "working"
+screen_off = "working"
+backlight = "working"
 touch = "working"
+buttons = "untested"
+accelerometer = "working"
+gyroscope = "missing"
+light_sensor = "missing"
+touch_id = "missing"
+storage_read = "working"
+storage_write = "working"
 wifi = "working"
-bluetooth = "working"
-storage = "working"
+bluetooth_input = "working"
+bluetooth_audio = "working"
+cellular = "none"
 battery = "working"
 charging = "working"
-backlight = "working"
-buttons = "untested"
-audio = "partial"
-camera = "missing"
-cellular = "none"
+charging_control = "working"
 suspend = "working"
+resume = "working"
+usb_serial = "working"
+usb_network = "working"
+audio_output = "working"
+audio_input = "missing"
+camera = "missing"
 gpu = "missing"

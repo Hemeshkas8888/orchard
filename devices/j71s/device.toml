@@ -31,27 +31,33 @@ recipe = "firmware.json"
 # IPSW's DeviceTree.j71sap), the same as j71t's. They wait for PCIe on the S8000.
 
 [support]
-install = false
 status = "experimental"
-caveats = [
-  "Internal storage and Wi-Fi need PCIe on the S8000 (Samsung) SoC, which isn't supported yet; RAM boot only.",
-]
-wifi = false
-usb_serial = true
-usb_network = true
 
+# States: working, untested, missing, none (features.toml).
 [features]
 display = "untested"
+screen_off = "untested"
+backlight = "untested"
 touch = "untested"
+buttons = "untested"
+accelerometer = "missing"
+gyroscope = "missing"
+light_sensor = "missing"
+touch_id = "missing"
+storage_read = "missing"
+storage_write = "missing"
 wifi = "missing"
-bluetooth = "untested"
-storage = "missing"
+bluetooth_input = "untested"
+bluetooth_audio = "untested"
+cellular = "none"
 battery = "untested"
 charging = "untested"
-backlight = "untested"
-buttons = "untested"
-audio = "untested"
-camera = "missing"
-cellular = "none"
+charging_control = "untested"
 suspend = "missing"
+resume = "missing"
+usb_serial = "untested"
+usb_network = "untested"
+audio_output = "untested"
+audio_input = "untested"
+camera = "missing"
 gpu = "missing"

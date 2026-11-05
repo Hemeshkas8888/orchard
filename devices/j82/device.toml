@@ -30,31 +30,33 @@ dtb = "t7001-j82"       # arch/arm64/boot/dts/apple/<dtb>.dtb
 recipe = "firmware.json" # Relative to this device.toml; public recipe, not firmware bytes.
 
 [support]
-install = false # No storage driver for the A8X's NVMe (ANS1) yet: RAM boot only.
 status = "experimental"
-caveats = [
-  "RAM boot only: the internal storage is not supported yet.",
-  "Wi-Fi module rieslingb (BCM4350); the cellular modem is not supported.",
-  "No J82 has booted yet. Martin Puškáč's port and Orchard's test ran on the Wi-Fi model (J81); the J82 differs at least in its Wi-Fi module (rieslingb) and the modem.",
-  "Boot with Hoolock's prebuilt Pongo (orchard build --pongo FILE), as on the J81.",
-]
-wifi = false # True once Wi-Fi is validated on Orchard's stack.
-usb_serial = true
-usb_network = true
 
-# States: working, partial, untested, missing, none (features.toml).
+# States: working, untested, missing, none (features.toml).
 [features]
 display = "untested"
+screen_off = "untested"
+backlight = "untested"
 touch = "untested"
+buttons = "untested"
+accelerometer = "missing"
+gyroscope = "missing"
+light_sensor = "missing"
+touch_id = "missing"
+storage_read = "missing"
+storage_write = "missing"
 wifi = "untested"
-bluetooth = "untested"
-storage = "missing"
+bluetooth_input = "untested"
+bluetooth_audio = "untested"
+cellular = "missing"
 battery = "untested"
 charging = "missing"
-backlight = "untested"
-buttons = "untested"
-audio = "missing"
-camera = "missing"
-cellular = "missing"
+charging_control = "missing"
 suspend = "missing"
+resume = "missing"
+usb_serial = "untested"
+usb_network = "untested"
+audio_output = "missing"
+audio_input = "missing"
+camera = "missing"
 gpu = "missing"

@@ -153,12 +153,50 @@ class IdentityOnlyBoards(unittest.TestCase):
             hardware.firmware_path('k93')
 
     def test_install_says_why_not(self):
-        from orchard import service
-        adapter = mock.Mock(DEVICETREE=None, INSTALL=False, NAME='iPad 2 (Wi-Fi)')
-        with mock.patch.object(service, 'choose', return_value=(adapter, {})):
+        from orchard import devices, service
+        with mock.patch.object(service, 'choose', return_value=(devices.load('k93'), {})):
             with tempfile.TemporaryDirectory() as directory, mock.patch.dict('os.environ', {'XDG_CACHE_HOME': directory}):
-                with self.assertRaisesRegex(ValueError, 'has no devicetree yet'):
+                with self.assertRaisesRegex(ValueError, 'no kernel or device tree yet') as caught:
                     service.install()
+        self.assertNotIn('RAM boot', str(caught.exception))
+
+
+class InferredInstall(unittest.TestCase):
+    def test_the_boards_with_every_requirement_can_install(self):
+        from orchard import hardware
+        boards = {path.parent.name for path in DESCRIPTORS if not hardware.install_blockers(path.parent.name)}
+        self.assertEqual(boards, {'d10', 'd101', 'd11', 'd111', 'd221', 'j171', 'j172', 'j71b', 'j71t', 'j72b', 'j72t'})
+
+    def test_the_matrix_agrees_with_the_cli(self):
+        from orchard import hardware
+        generate = tool()
+        for path in DESCRIPTORS:
+            with self.subTest(board=path.parent.name):
+                described = tomllib.loads(path.read_text())
+                self.assertEqual(generate.can_install(path.parent.name, described),
+                                 not hardware.install_blockers(path.parent.name, described))
+
+    def test_each_requirement_blocks_with_its_reason(self):
+        from orchard import hardware
+        whole = hardware.device('j71b')
+        for section, reason in (('kernel', 'kernel'), ('boot', 'boot method'), ('firmware', 'firmware')):
+            with self.subTest(section=section):
+                described = {key: value for key, value in whole.items() if key != section}
+                self.assertTrue(any(reason in text for text in hardware.install_blockers('j71b', described)))
+        described = {**whole, 'features': {**whole['features'], 'storage_write': 'missing'}}
+        self.assertEqual(hardware.install_blockers('j71b', described), ['its internal storage cannot be written yet'])
+
+    def test_untested_storage_is_enough(self):
+        from orchard import hardware
+        described = hardware.device('j71b')
+        described = {**described, 'features': {**described['features'], 'storage_write': 'untested'}}
+        self.assertEqual(hardware.install_blockers('j71b', described), [])
+
+    def test_a_method_orchard_does_not_implement_is_not_enough(self):
+        from orchard import hardware
+        described = hardware.device('j71b')
+        described = {**described, 'boot': {'methods': ['custom-dfu-recovery']}}
+        self.assertIn('this Orchard has no boot method for it yet', hardware.install_blockers('j71b', described))
 
 
 if __name__ == '__main__':

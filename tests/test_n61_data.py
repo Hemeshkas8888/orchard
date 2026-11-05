@@ -24,21 +24,12 @@ class N61Data(unittest.TestCase):
         self.assertEqual(self.device['boot'], {'methods': ['checkm8-pongo']})
 
     def test_observed_minimal_boot_and_touch_keep_installation_experimental(self):
-        self.assertIs(self.device['support']['install'], False)
-        self.assertEqual(self.device['support']['status'], 'experimental')
-        self.assertIs(self.device['support']['usb_serial'], True)
-        self.assertIs(self.device['support']['usb_network'], False)
-        self.assertIs(self.device['support']['wifi'], False)
+        self.assertIn('its internal storage cannot be written yet', data.install_blockers('n61'))
+        self.assertEqual(self.device['support'], {'status': 'experimental'})
         expected = dict.fromkeys(data.features(), 'missing')
-        expected.update(display='working', touch='working', battery='untested', backlight='untested', buttons='untested')
+        expected.update(display='working', screen_off='untested', touch='working', battery='untested',
+                        backlight='untested', buttons='untested', usb_serial='working', usb_network='untested')
         self.assertEqual(self.device['features'], expected)
-        caveats = ' '.join(self.device['support']['caveats'])
-        self.assertIn('minimal-boot RAM image', caveats)
-        self.assertIn('PongoOS 2.6.3-e98323f8', caveats)
-        self.assertIn('evdev contacts and releases', caveats)
-        self.assertIn('earlier desktop results are recorded as history', caveats)
-        self.assertIn('Bluetooth, Wi-Fi and internal storage are unqualified', caveats)
-
     def test_touch_recipe_selects_the_pinned_n61_gen1_profile(self):
         path = data.firmware_path('n61')
         self.assertEqual(path, HARDWARE / 'devices/n61/firmware.json')
@@ -50,7 +41,6 @@ class N61Data(unittest.TestCase):
         self.assertEqual(output['steps'], [{'step': 'z2fw-from-mtprops@3', 'input': 'N61.mtprops',
             'profile': 'C1F59,1', 'packet': 'Z2', 'touch_maximum': 1024, 'prox_maximum': 128,
             'fll_mval': 6099, 'ref_clk_div': 2, 'clk32_clock_enable': 1}])
-        self.assertFalse(self.device['support']['install'])
 
 
 

@@ -31,30 +31,33 @@ dtb = "t8015-d221"     # arch/arm64/boot/dts/apple/<dtb>.dtb
 recipe = "firmware.json" # Relative to this device.toml; public recipe, not firmware bytes.
 
 [support]
-install = false
 status = "experimental"
-caveats = [
-  "A Linux RAM boot reaches a USB serial shell, but no installer or launcher release exists yet (install is off).",
-  "Touch and charging are untested; internal storage (nvme-apple) is read and its partition writes are tested from the recovery, but no clean install has been done; the touch controller is not the Z2 the iPad/iPhone 7 use (ADT: hid-transport,k1).",
-  "The mainline t8015-x device tree describes the SoC alone; Wi-Fi, Bluetooth and backlight nodes are not in it yet.",
-]
-wifi = false # The t8015-x DT has no Wi-Fi node; the recipe ships the BCM4357 firmware only.
-usb_serial = false # No Orchard recovery has been booted on this board yet.
-usb_network = false
 
-# States: working, partial, untested, missing, none (features.toml).
+# States: working, untested, missing, none (features.toml).
 [features]
-display = "partial"
+display = "working"
+screen_off = "untested"
+backlight = "untested"
 touch = "missing"
+buttons = "untested"
+accelerometer = "missing"
+gyroscope = "missing"
+light_sensor = "missing"
+touch_id = "none"
+storage_read = "working"
+storage_write = "working" # nvme-apple binds; reads and partition writes tested from the recovery; no clean install yet.
 wifi = "missing"
-bluetooth = "missing"
-storage = "partial" # nvme-apple binds; reads and partition writes tested from the recovery; no clean install yet.
+bluetooth_input = "missing"
+bluetooth_audio = "missing"
+cellular = "missing"
 battery = "untested"
 charging = "missing"
-backlight = "untested"
-buttons = "untested"
-audio = "missing"
-camera = "missing"
-cellular = "missing"
+charging_control = "missing"
 suspend = "missing"
+resume = "missing"
+usb_serial = "working"
+usb_network = "untested"
+audio_output = "missing"
+audio_input = "missing"
+camera = "missing"
 gpu = "missing"

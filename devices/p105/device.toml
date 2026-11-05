@@ -25,30 +25,33 @@ dtb = "s5l8942x-p105"       # arch/arm/boot/dts/apple/<dtb>.dtb
 recipe = "firmware.json"
 
 [support]
-install = false # NAND is disabled; RAM and NFS root only.
 status = "experimental"
-caveats = [
-  "Kernel: Project Cascadia's A5 port on Linux 6.12 (platform apple-armv7), not the shared v7.3 kernel.",
-  "Not yet run on this stack. On a Cascadia-based build, shaynelegault saw display, touch, the Home button, typing, Wi-Fi association and a Bluetooth mouse working.",
-]
-wifi = true # Association was verified through the native desktop password UI (Cascadia-based build).
-usb_serial = true
-usb_network = true
 
-# States: working, partial, untested, missing, none (features.toml). Untested
-# on this stack; see the caveats for what was seen on a Cascadia-based build.
+# States: working, untested, missing, none (features.toml).
 [features]
 display = "untested"
+screen_off = "untested"
+backlight = "untested"
 touch = "untested"
+buttons = "untested"
+accelerometer = "missing"
+gyroscope = "missing"
+light_sensor = "missing"
+touch_id = "missing"
+storage_read = "missing"
+storage_write = "missing"
 wifi = "untested"
-bluetooth = "untested"
-storage = "missing"
+bluetooth_input = "untested"
+bluetooth_audio = "untested"
+cellular = "none"
 battery = "untested"
 charging = "untested"
-backlight = "untested"
-buttons = "untested"
-audio = "untested"
-camera = "missing"
-cellular = "none"
+charging_control = "untested"
 suspend = "missing"
+resume = "missing"
+usb_serial = "untested"
+usb_network = "untested"
+audio_output = "untested"
+audio_input = "untested"
+camera = "missing"
 gpu = "missing"

@@ -309,6 +309,17 @@ def status_of(described):
     return described.get('support', {}).get('status', 'experimental')
 
 
+def can_install(profile, described):
+    """hardware.install_blockers, for a tool that imports none of orchard."""
+    methods = tomllib.loads((ROOT / 'methods.toml').read_text())
+    usable = any(methods[name]['implemented_in'] == 'orchard' and not methods[name]['boot_json']
+                 or methods[name]['implemented_in'] == 'orchard'
+                 and name in json.loads((DEVICES / profile / 'boot.json').read_text())['methods']
+                 for name in described.get('boot', {}).get('methods', []))
+    return ('kernel' in described and usable and 'firmware' in described
+            and described.get('features', {}).get('storage_write', 'missing') != 'missing')
+
+
 def cell(value):
     return value if value else '–'
 
@@ -327,6 +338,7 @@ def render():
              'do not edit by hand.', '',
              '- **known:** identity and boot data only, from public sources. Orchard does not build for it yet.',
              '- **experimental / supported:** Orchard builds for it. Feature states are below.',
+             '- **Install:** every requirement is met (`hardware.install_blockers`). Other features may not work yet.',
              '- **Device tree:** the board has one in OrchardLinux/linux. It does not mean the board has booted.',
              '- **boot.json:** the Apple boot files are known. It does not mean a method runs on the board.',
              '', '## Chips', '',
@@ -342,8 +354,8 @@ def render():
                      f'{chip.get("page_size", "–")} | {cell(chip.get("platform"))} | {stages} | {len(boards)} | '
                      f'{building} | {trees} |')
     lines += ['', '## Boards', '',
-              '| Chip | Board | Device | Product | Status | Methods | Firmware | Device tree | boot.json build |',
-              '| --- | --- | --- | --- | --- | --- | --- | --- | --- |']
+              '| Chip | Board | Device | Product | Status | Install | Methods | Firmware | Device tree | boot.json build |',
+              '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |']
     for soc in sorted(rows, key=order.get):
         chip = next(chip for chip in known.values() if chip['soc'] == soc)
         for profile, device in sorted(rows[soc]):
@@ -353,13 +365,14 @@ def render():
             dtb = device.get('kernel', device.get('catalog', {})).get('dtb')
             methods = ', '.join(device.get('boot', {}).get('methods', [])) or '–'
             lines.append(f'| {chip["name"]} | `{profile}` | {device["device"]["name"]} | '
-                         f'{", ".join(device["device"]["apple_products"])} | {status_of(device)} | {methods} | '
+                         f'{", ".join(device["device"]["apple_products"])} | {status_of(device)} | '
+                         f'{"yes" if can_install(profile, device) else "–"} | {methods} | '
                          f'{"yes" if (path / "firmware.json").is_file() else "–"} | {"yes" if dtb else "–"} | {build} |')
     lines += ['', 'Not generated while in review: ' + ', '.join(f'`{board}` ({reason})'
                                                                 for board, reason in IN_REVIEW.items()) + '.']
     labels = tomllib.loads((ROOT / 'features.toml').read_text())
     lines += ['', '## Features', '', 'Boards Orchard builds for. '
-              'States: working, partial, untested, missing, none (no such hardware).', '',
+              'States: working, untested, missing, none (no such hardware).', '',
               '| Board | ' + ' | '.join(labels.values()) + ' |',
               '| --- |' + ' --- |' * len(labels)]
     for soc in sorted(rows, key=order.get):

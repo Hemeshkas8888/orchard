@@ -83,8 +83,8 @@ class Adapter(Protocol):
     PRODUCT: Optional[str]
     # Support data from the hardware descriptor ([support], [features]).
     INSTALL: bool
+    INSTALL_BLOCKERS: List[str]
     STATUS: str
-    CAVEATS: List[str]
     FEATURES: Dict[str, str]
     # Board DTB file name a boot entry must carry (from [kernel] dtb).
     DEVICETREE: Optional[str]

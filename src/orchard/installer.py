@@ -119,7 +119,7 @@ def core_files():
 
 
 def _device_files(hardware, boards):
-    files = {'features.toml': hardware / 'features.toml'}
+    files = {'features.toml': hardware / 'features.toml', 'methods.toml': hardware / 'methods.toml'}
     for board in boards:
         directory = hardware / 'devices' / board
         if not (directory / 'device.toml').is_file():
