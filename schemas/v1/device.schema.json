@@ -364,14 +364,6 @@
             "missing",
             "none"
           ]
-        },
-        "gpu": {
-          "enum": [
-            "working",
-            "untested",
-            "missing",
-            "none"
-          ]
         }
       },
       "required": [
@@ -399,8 +391,7 @@
         "usb_network",
         "audio_output",
         "audio_input",
-        "camera",
-        "gpu"
+        "camera"
       ],
       "additionalProperties": false
     },

@@ -309,6 +309,13 @@ def status_of(described):
     return described.get('support', {}).get('status', 'experimental')
 
 
+def gpu_milestone(chip):
+    """The highest GLES version whose dEQP suite the chip's driver has reached."""
+    reached = chip.get('gpu', {})
+    return next((label for key, label in (('gles31', 'GLES 3.1'), ('gles3', 'GLES 3'), ('gles2', 'GLES 2'))
+                 if key in reached), '–')
+
+
 def can_install(profile, described):
     """hardware.install_blockers, for a tool that imports none of orchard."""
     methods = tomllib.loads((ROOT / 'methods.toml').read_text())
@@ -341,9 +348,10 @@ def render():
              '- **Install:** every requirement is met (`hardware.install_blockers`). Other features may not work yet.',
              '- **Device tree:** the board has one in OrchardLinux/linux. It does not mean the board has booted.',
              '- **boot.json:** the Apple boot files are known. It does not mean a method runs on the board.',
+             '- **GPU (dEQP):** the highest GLES suite that completes with no GPU hangs and only listed failures, through Zink.',
              '', '## Chips', '',
-             '| Chip | SoC | CPID | Core | Page size | Platform | Stages | Boards | In build | Device tree |',
-             '| --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | ---: |']
+             '| Chip | SoC | CPID | Core | Page size | Platform | Stages | GPU (dEQP) | Boards | In build | Device tree |',
+             '| --- | --- | --- | --- | ---: | --- | --- | --- | ---: | ---: | ---: |']
     for soc in sorted(rows, key=order.get):
         chip = next(chip for chip in known.values() if chip['soc'] == soc)
         boards = rows[soc]
@@ -351,7 +359,7 @@ def render():
         trees = sum(bool(device.get('kernel', device.get('catalog', {})).get('dtb')) for _, device in boards)
         stages = ' + '.join(chip.get('stages', [])) or '–'
         lines.append(f'| {chip["name"]} | {soc.upper()} | `{chip["cpid"]:#06x}` | {cell(chip.get("core"))} | '
-                     f'{chip.get("page_size", "–")} | {cell(chip.get("platform"))} | {stages} | {len(boards)} | '
+                     f'{chip.get("page_size", "–")} | {cell(chip.get("platform"))} | {stages} | {gpu_milestone(chip)} | {len(boards)} | '
                      f'{building} | {trees} |')
     lines += ['', '## Boards', '',
               '| Chip | Board | Device | Product | Status | Install | Methods | Firmware | Device tree | boot.json build |',

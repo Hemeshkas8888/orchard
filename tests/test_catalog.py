@@ -107,6 +107,14 @@ class Urls(unittest.TestCase):
         self.assertEqual(tool().secure('https://updates.cdn-apple.com/a.ipsw'), 'https://updates.cdn-apple.com/a.ipsw')
 
 
+class GpuMilestones(unittest.TestCase):
+    def test_the_highest_milestone_is_shown(self):
+        milestone = tool().gpu_milestone
+        self.assertEqual(milestone({}), '–')
+        self.assertEqual(milestone({'gpu': {'gles2': 'working'}}), 'GLES 2')
+        self.assertEqual(milestone({'gpu': {'gles2': 'working', 'gles3': 'working'}}), 'GLES 3')
+
+
 class BuildChoice(unittest.TestCase):
     FIRMWARES = [{'version': '9.3.5', 'buildid': '13G36'}, {'version': '8.4.1', 'buildid': '12H321'},
                  {'version': '7.1.2', 'buildid': '11D257'}]
