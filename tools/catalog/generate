@@ -3,6 +3,8 @@
 
   tools/catalog/generate write --linux TREE    add missing boards, refresh every boot.json
   tools/catalog/generate check --linux TREE    report where the catalog and public sources differ
+  tools/catalog/generate kernel --kernel PLATFORM=DIR ...
+                                               record which drivers each board's device tree binds
   tools/catalog/generate matrix [--check]      write docs/compatibility.md from the catalog
 
 `write` and `check` read api.ipsw.me, each IPSW's BuildManifest and boot files
@@ -14,6 +16,10 @@ A boot.json's "methods" also come from people, and are kept as they are.
 Default build of a board, in order: the chip's reference_version when the board
 has it (or the newest build of that major version), the board's firmware recipe
 build, the newest public build. A method that sets "build" adds that build too.
+
+`kernel` reads a built kernel (DIR holds dtbs/, lib/modules/ and sdk/, as an
+orchard kernel component does) and writes tools/catalog/drivers.json. It says a
+driver could bind on the board, never that the feature works.
 """
 import argparse
 import concurrent.futures
@@ -23,6 +29,7 @@ import json
 from pathlib import Path
 import plistlib
 import re
+import struct
 import subprocess
 import sys
 import time
@@ -37,6 +44,8 @@ HEADERS = {'User-Agent': 'orchard-catalog-generator'}
 FAMILIES = ('iPad', 'iPhone')
 INPUTS = ('iBSS', 'iBEC', 'DeviceTree')
 MATRIX = ROOT / 'docs/compatibility.md'
+FEATURE_DRIVERS = ROOT / 'tools/catalog/feature-drivers.toml'
+DRIVERS = ROOT / 'tools/catalog/drivers.json'
 # api.ipsw.me lists some old IPSWs over HTTP; this host serves the same files over HTTPS.
 HTTP_HOST, HTTPS_HOST = 'http://appldnld.apple.com/', 'https://secure-appldnld.apple.com/'
 # Boards an open pull request adds; generating them here would conflict with it.
@@ -303,6 +312,88 @@ def check(tree):
     return failures + ([] if clean else ['the catalog differs from public sources'])
 
 
+def device_tree_nodes(data):
+    """[{property: bytes}] of every node in a flattened device tree."""
+    magic, _, structure, strings = struct.unpack('>4I', data[:16])
+    if magic != 0xd00dfeed:
+        raise ValueError('Not a flattened device tree')
+    names, offset, stack, nodes = data[strings:], structure, [], []
+    while True:
+        token = struct.unpack('>I', data[offset:offset + 4])[0]
+        offset += 4
+        if token == 1:  # begin node: its name, padded to four bytes
+            offset = (data.index(b'\0', offset) + 4) & ~3
+            stack.append({})
+        elif token == 2:  # end node
+            nodes.append(stack.pop())
+        elif token == 3:  # property: length, name offset, value
+            length, name = struct.unpack('>II', data[offset:offset + 8])
+            offset += 8
+            key = names[name:names.index(b'\0', name)].decode()
+            stack[-1][key] = data[offset:offset + length]
+            offset = (offset + length + 3) & ~3
+        elif token == 9:  # end of the tree
+            return nodes
+
+
+def kernel_drivers(directory):
+    """{device tree compatible: driver} of a built kernel: modules and built-in drivers."""
+    result = {}
+    for path in Path(directory, 'lib/modules').glob('*/modules.alias'):
+        for found in re.finditer(r'^alias of:N\*T\*C(\S+?) (\S+)$', path.read_text(), re.M):
+            result[found[1].removesuffix('C*')] = found[2]
+    builtin = Path(directory, 'sdk/modules.builtin.modinfo').read_bytes()
+    for record in builtin.split(b'\0'):
+        found = re.fullmatch(rb'(\w+)\.alias=of:N\*T\*C(.+)', record)
+        if found:
+            result[found[2].decode().removesuffix('C*')] = found[1].decode()
+    return result
+
+
+def bound_features(tree, drivers, wanted):
+    """The features whose driver would bind an enabled node of this device tree."""
+    bound = set()
+    for node in device_tree_nodes(tree):
+        if node.get('status', b'okay').rstrip(b'\0') not in (b'okay', b'ok'):
+            continue
+        names = [name.decode() for name in node.get('compatible', b'').split(b'\0') if name]
+        driver = next((drivers[name] for name in names if name in drivers), None)
+        if driver:
+            bound.update({driver} | {f'{driver}:{key}' for key in node})
+    return sorted(feature for feature, options in wanted.items() if bound & set(options))
+
+
+def kernel_report(directories):
+    """Write drivers.json from {platform: built kernel directory}."""
+    wanted = tomllib.loads(FEATURE_DRIVERS.read_text())
+    known = chips()
+    drivers = {platform: kernel_drivers(path) for platform, path in directories.items()}
+    boards = {}
+    for path in sorted(DEVICES.glob('*/device.toml')):
+        described = tomllib.loads(path.read_text())
+        platform = known[described['match']['dfu']['chip']].get('platform')
+        dtb = described.get('kernel', described.get('catalog', {})).get('dtb')
+        if platform in directories and dtb:
+            tree = next(Path(directories[platform], 'dtbs').rglob(f'{dtb}.dtb'))
+            boards[path.parent.name] = bound_features(tree.read_bytes(), drivers[platform], wanted)
+    releases = {platform: Path(path, 'kernel.release').read_text().strip() for platform, path in directories.items()}
+    DRIVERS.write_text(json.dumps({'kernels': releases, 'boards': boards}, indent=2, sort_keys=True) + '\n')
+    print(f'{len(boards)} boards, kernels {", ".join(sorted(releases.values()))}')
+    return []
+
+
+def disagreements(described, found, wanted):
+    """[(feature, what's odd)] between a board's feature states and its drivers."""
+    result = []
+    for feature in wanted:
+        state = described.get('features', {}).get(feature)
+        if state in ('working', 'untested') and feature not in found:
+            result.append((feature, f'{state}, but no driver binds'))
+        elif state == 'missing' and feature in found:
+            result.append((feature, 'missing, but a driver binds'))
+    return result
+
+
 def status_of(described):
     if 'kernel' not in described:
         return 'known'
@@ -387,7 +478,35 @@ def render():
         for profile, device in sorted(rows[soc]):
             if 'kernel' in device:
                 lines.append(f'| `{profile}` | ' + ' | '.join(device['features'][name] for name in labels) + ' |')
+    if DRIVERS.is_file():
+        lines += render_drivers(rows, order, labels)
     return '\n'.join(lines) + '\n'
+
+
+def render_drivers(rows, order, labels):
+    """What the kernel could do on each board, and where the feature states disagree."""
+    report = json.loads(DRIVERS.read_text())
+    wanted = tomllib.loads(FEATURE_DRIVERS.read_text())
+    columns = [name for name in labels if name in wanted]
+    lines = ['', '## Drivers', '',
+             'A yes means an enabled device tree node binds a driver in '
+             f'{", ".join(f"`{release}`" for release in sorted(report["kernels"].values()))}. '
+             'It does not mean the feature works. Read by `tools/catalog/generate kernel`.', '',
+             '| Board | Status | ' + ' | '.join(labels[name] for name in columns) + ' |',
+             '| --- | --- |' + ' --- |' * len(columns)]
+    odd = []
+    for soc in sorted(rows, key=order.get):
+        for profile, device in sorted(rows[soc]):
+            if profile not in report['boards']:
+                continue
+            found = report['boards'][profile]
+            cells = ' | '.join('yes' if name in found else '–' for name in columns)
+            lines.append(f'| `{profile}` | {status_of(device)} | {cells} |')
+            odd += [(profile, labels[feature], text) for feature, text in disagreements(device, found, wanted)]
+    if odd:
+        lines += ['', '### Where feature states and drivers disagree', '', '| Board | Feature | |', '| --- | --- | --- |']
+        lines += [f'| `{profile}` | {feature} | {text} |' for profile, feature, text in odd]
+    return lines
 
 
 def _chip_order(chip):
@@ -410,12 +529,16 @@ def main():
     for name in ('write', 'check'):
         commands.add_parser(name).add_argument('--linux', type=Path, required=True,
                                                help='a clone of OrchardLinux/linux with main and armv7')
+    commands.add_parser('kernel').add_argument('--kernel', action='append', required=True, metavar='PLATFORM=DIR',
+                                               help='a built kernel of that platform; repeat per platform')
     commands.add_parser('matrix').add_argument('--check', action='store_true', help='fail if it is out of date')
     arguments = parser.parse_args()
     if arguments.command == 'write':
         failures = write(arguments.linux)
     elif arguments.command == 'check':
         failures = check(arguments.linux)
+    elif arguments.command == 'kernel':
+        failures = kernel_report(dict(value.split('=', 1) for value in arguments.kernel))
     else:
         failures = matrix(arguments.check)
     for failure in failures:

@@ -1,0 +1,419 @@
+{
+  "boards": {
+    "d10": [
+      "accelerometer",
+      "backlight",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "storage_read",
+      "storage_write",
+      "usb_network",
+      "usb_serial"
+    ],
+    "d101": [
+      "accelerometer",
+      "backlight",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "storage_read",
+      "storage_write",
+      "usb_network",
+      "usb_serial"
+    ],
+    "d11": [
+      "accelerometer",
+      "backlight",
+      "battery",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "light_sensor",
+      "storage_read",
+      "storage_write",
+      "touch",
+      "usb_network",
+      "usb_serial",
+      "wifi"
+    ],
+    "d111": [
+      "accelerometer",
+      "backlight",
+      "battery",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "light_sensor",
+      "storage_read",
+      "storage_write",
+      "touch",
+      "usb_network",
+      "usb_serial",
+      "wifi"
+    ],
+    "d20": [
+      "backlight",
+      "battery",
+      "storage_read",
+      "storage_write",
+      "usb_network",
+      "usb_serial"
+    ],
+    "d201": [
+      "backlight",
+      "battery",
+      "storage_read",
+      "storage_write",
+      "usb_network",
+      "usb_serial"
+    ],
+    "d21": [
+      "backlight",
+      "battery",
+      "storage_read",
+      "storage_write",
+      "usb_network",
+      "usb_serial"
+    ],
+    "d211": [
+      "backlight",
+      "battery",
+      "storage_read",
+      "storage_write",
+      "usb_network",
+      "usb_serial"
+    ],
+    "d22": [
+      "battery",
+      "storage_read",
+      "storage_write",
+      "usb_network",
+      "usb_serial"
+    ],
+    "d221": [
+      "battery",
+      "storage_read",
+      "storage_write",
+      "usb_network",
+      "usb_serial",
+      "wifi"
+    ],
+    "j120": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j121": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j127": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j128": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j171": [
+      "accelerometer",
+      "backlight",
+      "battery",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "charging",
+      "light_sensor",
+      "storage_read",
+      "storage_write",
+      "touch",
+      "usb_network",
+      "usb_serial",
+      "wifi"
+    ],
+    "j172": [
+      "accelerometer",
+      "backlight",
+      "battery",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "charging",
+      "light_sensor",
+      "storage_read",
+      "storage_write",
+      "touch",
+      "usb_network",
+      "usb_serial",
+      "wifi"
+    ],
+    "j207": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j208": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j71": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j71b": [
+      "accelerometer",
+      "audio_output",
+      "backlight",
+      "battery",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "charging",
+      "storage_read",
+      "storage_write",
+      "touch",
+      "usb_network",
+      "usb_serial",
+      "wifi"
+    ],
+    "j71s": [
+      "audio_output",
+      "backlight",
+      "battery",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "charging",
+      "light_sensor",
+      "touch",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j71t": [
+      "audio_output",
+      "backlight",
+      "battery",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "charging",
+      "light_sensor",
+      "storage_read",
+      "storage_write",
+      "touch",
+      "usb_network",
+      "usb_serial",
+      "wifi"
+    ],
+    "j72b": [
+      "accelerometer",
+      "backlight",
+      "battery",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "charging",
+      "storage_read",
+      "storage_write",
+      "touch",
+      "usb_network",
+      "usb_serial",
+      "wifi"
+    ],
+    "j72s": [
+      "audio_output",
+      "backlight",
+      "battery",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "charging",
+      "light_sensor",
+      "touch",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j72t": [
+      "audio_output",
+      "backlight",
+      "battery",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "charging",
+      "light_sensor",
+      "storage_read",
+      "storage_write",
+      "touch",
+      "usb_network",
+      "usb_serial",
+      "wifi"
+    ],
+    "j73": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j81": [
+      "backlight",
+      "battery",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "touch",
+      "usb_network",
+      "usb_serial",
+      "wifi"
+    ],
+    "j82": [
+      "backlight",
+      "battery",
+      "bluetooth_audio",
+      "bluetooth_input",
+      "buttons",
+      "touch",
+      "usb_network",
+      "usb_serial",
+      "wifi"
+    ],
+    "j85": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j85m": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j86": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j86m": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j87": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j87m": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j96": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j97": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j98a": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "j99a": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "n51": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "n53": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "n56": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "n61": [
+      "backlight",
+      "buttons",
+      "touch",
+      "usb_network",
+      "usb_serial"
+    ],
+    "n66": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "n66m": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "n69": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "n69u": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "n71": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ],
+    "n71m": [
+      "backlight",
+      "buttons",
+      "usb_network",
+      "usb_serial"
+    ]
+  },
+  "kernels": {
+    "apple-16k": "7.3.0-rc1-orchard-apple-16k",
+    "apple-4k": "7.3.0-rc1-orchard-apple-4k"
+  }
+}
