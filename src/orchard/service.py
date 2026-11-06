@@ -86,7 +86,7 @@ def entry_for(record, devicetree):
     name = record.get('name', 'Linux')
     return {'id': re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-') or 'linux', 'title': name,
             # Quiet as the recovery: no console text over the splash; the system maps its console.
-            'options': record.get('cmdline', 'rootwait') + ' fbcon=map:9 vt.global_cursor_default=0',
+            'options': (f"{record.get('cmdline', 'rootwait')} fbcon=map:9 vt.global_cursor_default=0").strip(),
             'devicetree': devicetree}
 
 

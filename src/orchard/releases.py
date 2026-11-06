@@ -205,5 +205,8 @@ def resolve(manifest, profile, progress=None, clock=None, purpose='install'):
               'release': document.get('version'), 'name': document.get('name', 'Linux'),
               'default_root': document.get('install', {}).get('default_root', '/linux'),
               'account': document.get('install', {}).get('account'),
-              'ready': document.get('install', {}).get('ready')}
+              'ready': document.get('install', {}).get('ready'),
+              # Distributions may add kernel arguments (service.entry_for puts them after root=PARTUUID=);
+              # absent or empty keeps the default rootwait-only command line.
+              'cmdline': document.get('install', {}).get('cmdline', '')}
     return record, paths

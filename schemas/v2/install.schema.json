@@ -61,6 +61,11 @@
           "type": "string",
           "pattern": "^/(?:[A-Za-z0-9][A-Za-z0-9._-]{0,63})?$"
         },
+        "cmdline": {
+          "type": "string",
+          "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9=.,_*+/:@-]{0,127}(?: [A-Za-z0-9][A-Za-z0-9=.,_*+/:@-]{0,127})*)$",
+          "description": "Kernel command-line arguments the release adds after root=PARTUUID=; init= may change the started init."
+        },
         "ready": {
           "type": "string",
           "pattern": "^/run/[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$",
@@ -70,12 +75,29 @@
           "type": "object",
           "description": "The image's one regular user, and what the installer sets for it.",
           "properties": {
-            "user": {"type": "string", "pattern": "^[a-z_][a-z0-9_-]{0,31}$"},
-            "password": {"type": "boolean", "description": "Ask for the user's password (for sudo and login)."},
-            "pin": {"type": "boolean", "description": "Ask for a 6-digit lock-screen PIN."},
-            "passwordless_sudo": {"type": "boolean", "description": "sudo without a password (/etc/sudoers.d/orchard)."}
+            "user": {
+              "type": "string",
+              "pattern": "^[a-z_][a-z0-9_-]{0,31}$"
+            },
+            "password": {
+              "type": "boolean",
+              "description": "Ask for the user's password (for sudo and login)."
+            },
+            "pin": {
+              "type": "boolean",
+              "description": "Ask for a 6-digit lock-screen PIN."
+            },
+            "passwordless_sudo": {
+              "type": "boolean",
+              "description": "sudo without a password (/etc/sudoers.d/orchard)."
+            }
           },
-          "required": ["user", "password", "pin", "passwordless_sudo"],
+          "required": [
+            "user",
+            "password",
+            "pin",
+            "passwordless_sudo"
+          ],
           "additionalProperties": false
         }
       },
